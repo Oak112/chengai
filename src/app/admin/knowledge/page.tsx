@@ -63,7 +63,7 @@ export default function AdminKnowledgePage() {
   const handleFileUpload = async (file: File) => {
     setIsUploading(true);
     setUploadStatus(null);
-    setUploadProgress(`正在处理 ${file.name}...`);
+    setUploadProgress(`Processing ${file.name}...`);
 
     try {
       const csrfToken = getCookieValue('chengai_csrf');
@@ -82,19 +82,19 @@ export default function AdminKnowledgePage() {
       if (res.ok) {
         setUploadStatus({
           type: 'success',
-          message: `成功上传 ${data.fileName}：${data.inserted} 个 chunks`,
+          message: `Uploaded ${data.fileName}: ${data.inserted} chunks`,
         });
         fetchData();
       } else {
         setUploadStatus({
           type: 'error',
-          message: data.error || '上传失败',
+          message: data.error || 'Upload failed',
         });
       }
     } catch (error) {
       setUploadStatus({
         type: 'error',
-        message: '网络错误，请重试',
+        message: 'Network error. Please try again.',
       });
       console.error('Upload error:', error);
     } finally {
@@ -128,24 +128,24 @@ export default function AdminKnowledgePage() {
       if (res.ok) {
         setUploadStatus({
           type: 'success',
-          message: `成功导入 ${data.title}：${data.inserted} 个 chunks`,
+          message: `Imported ${data.title}: ${data.inserted} chunks`,
         });
         setTextTitle('');
         setTextContent('');
         fetchData();
       } else {
-        setUploadStatus({ type: 'error', message: data.error || '导入失败' });
+        setUploadStatus({ type: 'error', message: data.error || 'Import failed' });
       }
     } catch (error) {
       console.error('Text ingest error:', error);
-      setUploadStatus({ type: 'error', message: '网络错误，请重试' });
+      setUploadStatus({ type: 'error', message: 'Network error. Please try again.' });
     } finally {
       setIsTextIngesting(false);
     }
   };
 
   const handleDelete = async (fileName: string) => {
-    if (!confirm(`确定要删除 "${fileName}" 的所有 chunks 吗？`)) return;
+    if (!confirm(`Delete all chunks for "${fileName}"? This cannot be undone.`)) return;
 
     try {
       const csrfToken = getCookieValue('chengai_csrf');
@@ -184,10 +184,10 @@ export default function AdminKnowledgePage() {
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
-          知识库管理
+          Knowledge Base
         </h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          上传文件到 RAG 知识库，支持 PDF、DOCX、TXT、MD 格式
+          Upload files into the RAG knowledge base. Supports PDF, DOCX, TXT, and MD.
         </p>
       </div>
 
@@ -199,15 +199,15 @@ export default function AdminKnowledgePage() {
               <Upload className="h-5 w-5 text-blue-600" />
             </div>
             <div>
-              <h3 className="font-semibold text-zinc-900 dark:text-white">上传文件</h3>
+              <h3 className="font-semibold text-zinc-900 dark:text-white">Upload File</h3>
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                支持 PDF、DOCX、TXT、MD 格式
+                Supports PDF, DOCX, TXT, and MD.
               </p>
             </div>
           </div>
 
           <div className="mb-4 flex flex-wrap items-center gap-2">
-            <span className="text-sm text-zinc-600 dark:text-zinc-400">类型：</span>
+            <span className="text-sm text-zinc-600 dark:text-zinc-400">Type:</span>
             <select
               value={sourceType}
               onChange={(e) => setSourceType(e.target.value)}
@@ -241,9 +241,9 @@ export default function AdminKnowledgePage() {
               <>
                 <Upload className="mx-auto h-10 w-10 text-zinc-400" />
                 <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
-                  拖拽文件到此处，或{' '}
+                  Drag and drop a file here, or{' '}
                   <label className="text-blue-600 hover:underline cursor-pointer">
-                    点击选择
+                    click to select
                     <input
                       type="file"
                       className="hidden"
@@ -290,23 +290,23 @@ export default function AdminKnowledgePage() {
 
         {/* Text Ingest */}
         <div className="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900 lg:col-span-2">
-          <h3 className="font-semibold text-zinc-900 dark:text-white mb-1">粘贴文本</h3>
+          <h3 className="font-semibold text-zinc-900 dark:text-white mb-1">Paste Text</h3>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-            适合快速添加文章片段、经历记录、笔记等（会自动分块+嵌入）
+            Great for quickly adding article snippets, experience notes, and more (auto chunking + embeddings).
           </p>
 
           <div className="grid gap-3">
             <input
               value={textTitle}
               onChange={(e) => setTextTitle(e.target.value)}
-              placeholder="标题（用于引用与管理）"
+              placeholder="Title (for citation and management)"
               className="w-full rounded-xl border border-zinc-200 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
               disabled={isTextIngesting || isUploading}
             />
             <textarea
               value={textContent}
               onChange={(e) => setTextContent(e.target.value)}
-              placeholder="粘贴正文..."
+              placeholder="Paste content..."
               className="w-full min-h-[180px] rounded-xl border border-zinc-200 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
               disabled={isTextIngesting || isUploading}
             />
@@ -318,10 +318,10 @@ export default function AdminKnowledgePage() {
               {isTextIngesting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  导入中...
+                  Importing...
                 </>
               ) : (
-                '导入文本'
+                'Import text'
               )}
             </button>
           </div>
@@ -334,8 +334,8 @@ export default function AdminKnowledgePage() {
               <Database className="h-5 w-5 text-purple-600" />
             </div>
             <div>
-              <h3 className="font-semibold text-zinc-900 dark:text-white">知识库统计</h3>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">当前存储的 chunks 数量</p>
+              <h3 className="font-semibold text-zinc-900 dark:text-white">Knowledge Stats</h3>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">Chunks currently stored</p>
             </div>
           </div>
 
@@ -346,23 +346,23 @@ export default function AdminKnowledgePage() {
           ) : (
             <div className="space-y-3">
               <div className="flex items-center justify-between py-2 border-b border-zinc-100 dark:border-zinc-800">
-                <span className="text-sm text-zinc-600 dark:text-zinc-400">总 Chunks</span>
+                <span className="text-sm text-zinc-600 dark:text-zinc-400">Total chunks</span>
                 <span className="font-medium text-zinc-900 dark:text-white">{stats?.total || 0}</span>
               </div>
               <div className="flex items-center justify-between py-2 border-b border-zinc-100 dark:border-zinc-800">
-                <span className="text-sm text-zinc-600 dark:text-zinc-400">文章</span>
+                <span className="text-sm text-zinc-600 dark:text-zinc-400">Articles</span>
                 <span className="font-medium text-zinc-900 dark:text-white">{stats?.byType.article || 0}</span>
               </div>
               <div className="flex items-center justify-between py-2 border-b border-zinc-100 dark:border-zinc-800">
-                <span className="text-sm text-zinc-600 dark:text-zinc-400">项目</span>
+                <span className="text-sm text-zinc-600 dark:text-zinc-400">Projects</span>
                 <span className="font-medium text-zinc-900 dark:text-white">{stats?.byType.project || 0}</span>
               </div>
               <div className="flex items-center justify-between py-2">
-                <span className="text-sm text-zinc-600 dark:text-zinc-400">简历</span>
+                <span className="text-sm text-zinc-600 dark:text-zinc-400">Resume</span>
                 <span className="font-medium text-zinc-900 dark:text-white">{stats?.byType.resume || 0}</span>
               </div>
               <div className="flex items-center justify-between py-2">
-                <span className="text-sm text-zinc-600 dark:text-zinc-400">故事</span>
+                <span className="text-sm text-zinc-600 dark:text-zinc-400">Stories</span>
                 <span className="font-medium text-zinc-900 dark:text-white">{stats?.byType.story || 0}</span>
               </div>
             </div>
@@ -376,8 +376,8 @@ export default function AdminKnowledgePage() {
               <FileText className="h-5 w-5 text-green-600" />
             </div>
             <div>
-              <h3 className="font-semibold text-zinc-900 dark:text-white">已导入文件</h3>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">点击删除可移除</p>
+              <h3 className="font-semibold text-zinc-900 dark:text-white">Imported Files</h3>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">Click the trash icon to remove.</p>
             </div>
           </div>
 
@@ -387,7 +387,7 @@ export default function AdminKnowledgePage() {
             </div>
           ) : files.length === 0 ? (
             <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center py-4">
-              暂无文件，请上传
+              No files yet. Upload one to get started.
             </p>
           ) : (
             <ul className="space-y-2">

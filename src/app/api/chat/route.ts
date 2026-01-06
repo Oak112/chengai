@@ -23,11 +23,11 @@ function detectSourceTypes(message: string): string[] | undefined {
     if (!types.includes(t)) types.push(t);
   };
 
-  if (has(/\bproject(s)?\b|\bportfolio\b|项目|作品/)) add('project');
-  if (has(/\barticle(s)?\b|\bblog\b|\bpost(s)?\b|文章|博客/)) add('article');
-  if (has(/\bstory|stories\b|\bstar\b|\bbehavior(al)?\b|故事|行为/)) add('story');
-  if (has(/\bresume\b|\bcv\b|简历/)) add('resume');
-  if (has(/\bskill(s)?\b|技能|技术栈/)) add('skill');
+  if (has(/\bproject(s)?\b|\bportfolio\b/)) add('project');
+  if (has(/\barticle(s)?\b|\bblog\b|\bpost(s)?\b/)) add('article');
+  if (has(/\bstory\b|\bstories\b|\bstar\b|\bbehavior(al)?\b/)) add('story');
+  if (has(/\bresume\b|\bcv\b/)) add('resume');
+  if (has(/\bskill(s)?\b/)) add('skill');
 
   return types.length > 0 ? types : undefined;
 }
@@ -278,7 +278,7 @@ export async function POST(request: NextRequest) {
             ? '\n\nImportant: the SOURCES below may be a high-level catalog of available items, not necessarily direct evidence for the user’s exact question. Only claim what is explicitly supported by the snippets. If details are missing, say so and point to the most relevant sources to read next.'
             : ''
         }`
-      : `${CHAT_SYSTEM_PROMPT}\n\nImportant: no directly relevant sources were retrieved for this question. State that clearly and suggest the most relevant pages to check (projects / articles / skills), or ask the user to provide more context.\n\n注意：当前资料库中没有找到与该问题直接相关的证据。请明确告知，并建议用户查看相关项目/文章页或补充更多信息。`;
+      : `${CHAT_SYSTEM_PROMPT}\n\nImportant: no directly relevant sources were retrieved for this question. State that clearly and suggest the most relevant pages to check (projects / articles / skills), or ask the user to provide more context.`;
 
     const modeInstruction =
       mode === 'behavior'
