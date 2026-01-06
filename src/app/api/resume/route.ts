@@ -9,6 +9,7 @@ export async function GET() {
   try {
     const bucket = process.env.SUPABASE_RESUME_BUCKET || 'chengai-resume';
     const objectPath = process.env.SUPABASE_RESUME_PATH || 'resume.pdf';
+    const isProd = process.env.NODE_ENV === 'production';
 
     if (isSupabaseConfigured()) {
       try {
@@ -29,6 +30,12 @@ export async function GET() {
         }
       } catch (storageError) {
         console.warn('Resume storage download failed, falling back to local file:', storageError);
+      }
+
+      // In production deployments we do not ship the local `bank/` folder,
+      // so avoid noisy ENOENT logs and return a clean 404.
+      if (isProd) {
+        return NextResponse.json({ error: 'Resume not found' }, { status: 404 });
       }
     }
 

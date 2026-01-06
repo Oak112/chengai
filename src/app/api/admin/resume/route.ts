@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, DEFAULT_OWNER_ID, isSupabaseConfigured } from '@/lib/supabase';
 import { indexResume, deleteSourceChunks } from '@/lib/indexer';
+import { extractTextFromPdf } from '@/lib/pdf';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -20,28 +21,7 @@ async function ensureResumeBucket() {
 }
 
 async function parsePDF(buffer: Buffer): Promise<string> {
-  const { PDFParse } = await import('pdf-parse');
-  if (!PDFParse) throw new Error('pdf-parse: PDFParse export not found');
-
-  const parser = new PDFParse({ data: buffer });
-  try {
-    const result = (await parser.getText()) as unknown;
-    if (!result) return '';
-    if (typeof result === 'string') return result;
-    if (
-      typeof result === 'object' &&
-      result !== null &&
-      'text' in result &&
-      typeof (result as { text?: unknown }).text === 'string'
-    ) {
-      return (result as { text: string }).text;
-    }
-    return String(result);
-  } finally {
-    if (typeof parser.destroy === 'function') {
-      await parser.destroy();
-    }
-  }
+  return extractTextFromPdf(buffer);
 }
 
 async function parseDocx(buffer: Buffer): Promise<string> {
@@ -182,4 +162,3 @@ export async function DELETE() {
     return NextResponse.json({ error: 'Failed to delete resume' }, { status: 500 });
   }
 }
-

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, DEFAULT_OWNER_ID, isSupabaseConfigured } from '@/lib/supabase';
 import { generateEmbeddingsBatched } from '@/lib/ai';
+import { extractTextFromPdf } from '@/lib/pdf';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes for large files
@@ -9,33 +10,7 @@ const ALLOWED_SOURCE_TYPES = new Set(['article', 'resume', 'story', 'project', '
 
 // Dynamic imports for parsers
 async function parsePDF(buffer: Buffer): Promise<string> {
-  // pdf-parse v2 exposes a PDFParse class as a named ESM export
-  const { PDFParse } = await import('pdf-parse');
-  if (!PDFParse) {
-    throw new Error('pdf-parse: PDFParse export not found');
-  }
-
-  // Avoid importing the worker module here (it pulls native canvas deps and breaks Turbopack builds).
-  // Node.js can parse PDFs without manually wiring a worker.
-  const parser = new PDFParse({ data: buffer });
-  try {
-    const result = (await parser.getText()) as unknown;
-    if (!result) return '';
-    if (typeof result === 'string') return result;
-    if (
-      typeof result === 'object' &&
-      result !== null &&
-      'text' in result &&
-      typeof (result as { text?: unknown }).text === 'string'
-    ) {
-      return (result as { text: string }).text;
-    }
-    return String(result);
-  } finally {
-    if (typeof parser.destroy === 'function') {
-      await parser.destroy();
-    }
-  }
+  return extractTextFromPdf(buffer);
 }
 
 async function parseDocx(buffer: Buffer): Promise<string> {
