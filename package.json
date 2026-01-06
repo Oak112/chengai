@@ -1,26 +1,39 @@
 {
-  "name": "temp_nextjs",
-  "version": "0.1.0",
+  "name": "chengai",
+  "version": "1.0.0",
   "private": true,
+  "description": "Personal website and AI digital twin of Tianle Cheng",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --port 9527",
     "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "start": "next start --port 9527",
+    "lint": "eslint",
+    "seed": "npx tsx scripts/seed-knowledge.ts"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@supabase/supabase-js": "^2.89.0",
+    "lucide-react": "^0.562.0",
+    "mammoth": "^1.11.0",
     "next": "16.1.1",
+    "openai": "^6.15.0",
+    "pdf-parse": "^2.4.5",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@tailwindcss/typography": "^0.5.19",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }
