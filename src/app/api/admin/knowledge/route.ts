@@ -23,7 +23,7 @@ export async function GET() {
     // Get chunks grouped by source type
     const { data: chunks, error: chunksError } = await supabaseAdmin
       .from('chunks')
-      .select('id, source_type, metadata, created_at')
+      .select('source_type, source_id, metadata, created_at')
       .eq('owner_id', DEFAULT_OWNER_ID)
       .order('created_at', { ascending: false });
 
@@ -31,29 +31,36 @@ export async function GET() {
       console.error('Chunks error:', chunksError);
     }
 
-    // Group by source file (from metadata.title)
-    const fileMap = new Map<string, { count: number; type: string; created_at: string }>();
+    // Group by unique source (source_type + source_id)
+    const fileMap = new Map<
+      string,
+      { count: number; type: string; source_id: string; created_at: string; name: string }
+    >();
     
     for (const chunk of chunks || []) {
       const metadata = chunk.metadata as Record<string, string> | null;
-      const title = metadata?.title || 'Unknown';
-      const existing = fileMap.get(title);
+      const name = metadata?.title || 'Unknown';
+      const key = `${chunk.source_type}::${chunk.source_id}`;
+      const existing = fileMap.get(key);
       
       if (existing) {
         existing.count++;
       } else {
-        fileMap.set(title, {
+        fileMap.set(key, {
           count: 1,
           type: chunk.source_type,
+          source_id: chunk.source_id,
           created_at: chunk.created_at,
+          name,
         });
       }
     }
 
-    const files = Array.from(fileMap.entries()).map(([name, info]) => ({
-      name,
+    const files = Array.from(fileMap.values()).map((info) => ({
+      name: info.name,
       chunks: info.count,
       type: info.type,
+      source_id: info.source_id,
       created_at: info.created_at,
     }));
 
@@ -86,11 +93,30 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
     }
 
-    const { fileName } = await request.json();
+    const body = await request.json().catch(() => ({}));
+    const fileName = typeof body?.fileName === 'string' ? body.fileName : null;
+    const sourceId = typeof body?.sourceId === 'string' ? body.sourceId : null;
+    const sourceType = typeof body?.sourceType === 'string' ? body.sourceType : null;
 
-    if (!fileName) {
+    if (!sourceId || !sourceType) {
+      // Backward compatibility (older UI)
+      if (fileName) {
+        const { error } = await supabaseAdmin
+          .from('chunks')
+          .delete()
+          .eq('owner_id', DEFAULT_OWNER_ID)
+          .eq('metadata->>title', fileName);
+
+        if (error) {
+          console.error('Delete error:', error);
+          return NextResponse.json({ error: 'Failed to delete chunks' }, { status: 500 });
+        }
+
+        return NextResponse.json({ success: true });
+      }
+
       return NextResponse.json(
-        { error: 'fileName is required' },
+        { error: 'sourceId and sourceType are required' },
         { status: 400 }
       );
     }
@@ -99,7 +125,8 @@ export async function DELETE(request: NextRequest) {
       .from('chunks')
       .delete()
       .eq('owner_id', DEFAULT_OWNER_ID)
-      .eq('metadata->>title', fileName);
+      .eq('source_type', sourceType)
+      .eq('source_id', sourceId);
 
     if (error) {
       console.error('Delete error:', error);

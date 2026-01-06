@@ -14,6 +14,7 @@ interface KnowledgeFile {
   name: string;
   chunks: number;
   type: string;
+  source_id: string;
   created_at: string;
 }
 
@@ -144,8 +145,8 @@ export default function AdminKnowledgePage() {
     }
   };
 
-  const handleDelete = async (fileName: string) => {
-    if (!confirm(`Delete all chunks for "${fileName}"? This cannot be undone.`)) return;
+  const handleDelete = async (file: KnowledgeFile) => {
+    if (!confirm(`Delete all chunks for "${file.name}" (${file.type})? This cannot be undone.`)) return;
 
     try {
       const csrfToken = getCookieValue('chengai_csrf');
@@ -155,7 +156,7 @@ export default function AdminKnowledgePage() {
           'Content-Type': 'application/json',
           ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
         },
-        body: JSON.stringify({ fileName }),
+        body: JSON.stringify({ sourceId: file.source_id, sourceType: file.type }),
       });
 
       if (res.ok) {
@@ -376,8 +377,8 @@ export default function AdminKnowledgePage() {
               <FileText className="h-5 w-5 text-green-600" />
             </div>
             <div>
-              <h3 className="font-semibold text-zinc-900 dark:text-white">Imported Files</h3>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">Click the trash icon to remove.</p>
+              <h3 className="font-semibold text-zinc-900 dark:text-white">Indexed Sources</h3>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">Each item powers RAG retrieval.</p>
             </div>
           </div>
 
@@ -387,22 +388,25 @@ export default function AdminKnowledgePage() {
             </div>
           ) : files.length === 0 ? (
             <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center py-4">
-              No files yet. Upload one to get started.
+              No sources indexed yet. Upload a file or add content in Projects/Articles/Skills/Stories.
             </p>
           ) : (
             <ul className="space-y-2">
               {files.map((file) => (
                 <li
-                  key={file.name}
+                  key={`${file.type}:${file.source_id}`}
                   className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 group"
                 >
                   <div className="flex items-center gap-2">
                     <FileText className="h-4 w-4 text-zinc-400" />
                     <span className="text-sm text-zinc-700 dark:text-zinc-300">{file.name}</span>
+                    <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium uppercase text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                      {file.type}
+                    </span>
                     <span className="text-xs text-zinc-400">({file.chunks} chunks)</span>
                   </div>
                   <button
-                    onClick={() => handleDelete(file.name)}
+                    onClick={() => handleDelete(file)}
                     className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-opacity"
                   >
                     <Trash2 className="h-4 w-4 text-red-500" />

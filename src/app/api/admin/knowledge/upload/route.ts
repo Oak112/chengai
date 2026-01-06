@@ -2,11 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, DEFAULT_OWNER_ID, isSupabaseConfigured } from '@/lib/supabase';
 import { generateEmbeddingsBatched } from '@/lib/ai';
 import { extractTextFromPdf } from '@/lib/pdf';
+import { slugify } from '@/lib/slug';
+import { createHash } from 'crypto';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes for large files
 
 const ALLOWED_SOURCE_TYPES = new Set(['article', 'resume', 'story', 'project', 'skill']);
+
+function makeStableKbId(prefix: string, raw: string): string {
+  const normalized = String(raw || '').trim();
+  const slug = slugify(normalized) || 'untitled';
+  const hash = createHash('sha256').update(normalized).digest('hex').slice(0, 10);
+  return `${prefix}:${slug}:${hash}`;
+}
 
 // Dynamic imports for parsers
 async function parsePDF(buffer: Buffer): Promise<string> {
@@ -122,11 +131,13 @@ export async function POST(request: NextRequest) {
 
     // Delete existing chunks for this file
     const fileTitle = fileName.replace(/\.[^/.]+$/, ''); // Remove extension
+    const sourceId = makeStableKbId('kb:file', fileName);
     await supabaseAdmin
       .from('chunks')
       .delete()
       .eq('owner_id', DEFAULT_OWNER_ID)
-      .eq('metadata->>title', fileTitle);
+      .eq('source_type', sourceType)
+      .eq('source_id', sourceId);
 
     // Chunk the content
     const chunks = chunkText(content);
@@ -137,11 +148,12 @@ export async function POST(request: NextRequest) {
     const rows = chunks.map((chunk, i) => ({
       owner_id: DEFAULT_OWNER_ID,
       source_type: sourceType,
-      source_id: fileTitle,
+      source_id: sourceId,
       content: chunk,
       embedding: embeddings[i],
       metadata: {
         title: fileTitle,
+        kb_id: sourceId,
         original_filename: fileName,
         chunk_index: i,
         total_chunks: chunks.length,
@@ -164,6 +176,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       fileName: fileTitle,
+      sourceId,
       totalChunks: chunks.length,
       inserted: results.inserted,
       failed: results.failed,

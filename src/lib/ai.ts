@@ -59,7 +59,7 @@ export async function* streamChat(
   userMessage: string,
   context: string,
   evidenceMarkdown?: string
-): AsyncGenerator<string> {
+): AsyncGenerator<{ type: 'append' | 'replace'; content: string }> {
   const model = process.env.AI_CHAT_MODEL || 'grok-4-fast';
   const supportsStreaming = !model.startsWith('gemini');
 
@@ -92,7 +92,9 @@ export async function* streamChat(
         const evidenceIndex = findEvidenceStart(buffer);
         if (evidenceIndex >= 0) {
           const safe = buffer.slice(0, evidenceIndex);
-          if (safe) yield safe;
+          if (safe) {
+            yield { type: 'append', content: safe };
+          }
           buffer = '';
           stoppedAtEvidence = true;
           continue;
@@ -101,22 +103,36 @@ export async function* streamChat(
         if (buffer.length > lookbehind) {
           const emit = buffer.slice(0, buffer.length - lookbehind);
           buffer = buffer.slice(buffer.length - lookbehind);
-          if (emit) yield emit;
+          if (emit) {
+            yield { type: 'append', content: emit };
+          }
         }
       }
 
       if (!stoppedAtEvidence) {
         const remainder = buffer.trimEnd();
-        if (remainder) yield remainder;
+        if (remainder) {
+          yield { type: 'append', content: remainder };
+        }
       }
 
       if (evidenceMarkdown?.trim()) {
-        yield `\n\n${evidenceMarkdown.trim()}`;
+        yield { type: 'append', content: `\n\n${evidenceMarkdown.trim()}` };
       }
 
       return;
     } catch (error) {
       console.warn('Streaming failed, falling back to non-streaming:', error);
+
+      const response = await aiBuilders.chat.completions.create({
+        model,
+        messages,
+      });
+
+      const content = response.choices[0]?.message?.content || '';
+      const finalized = finalizeChatMarkdown(content, evidenceMarkdown);
+      yield { type: 'replace', content: finalized };
+      return;
     }
   }
 
@@ -130,7 +146,7 @@ export async function* streamChat(
 
   const chunkSize = 80;
   for (let i = 0; i < finalized.length; i += chunkSize) {
-    yield finalized.slice(i, i + chunkSize);
+    yield { type: 'append', content: finalized.slice(i, i + chunkSize) };
   }
 }
 

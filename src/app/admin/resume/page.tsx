@@ -136,14 +136,21 @@ export default function AdminResumePage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/api/resume"
-              target="_blank"
-              className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-            >
-              <Download className="h-4 w-4" />
-              Download
-            </Link>
+            {resume?.exists ? (
+              <Link
+                href="/api/resume"
+                target="_blank"
+                className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                <Download className="h-4 w-4" />
+                Download
+              </Link>
+            ) : (
+              <span className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-500 opacity-60 dark:border-zinc-700 dark:text-zinc-500">
+                <Download className="h-4 w-4" />
+                Download
+              </span>
+            )}
 
             <button
               onClick={handleDelete}
@@ -209,4 +216,3 @@ export default function AdminResumePage() {
     </div>
   );
 }
-

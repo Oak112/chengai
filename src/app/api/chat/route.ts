@@ -306,8 +306,18 @@ export async function POST(request: NextRequest) {
             context,
             evidenceMarkdown
           )) {
+            if (tokenChunk.type === 'replace') {
+              controller.enqueue(
+                encoder.encode(
+                  `data: ${JSON.stringify({ type: 'replace', content: tokenChunk.content })}\n\n`
+                )
+              );
+              continue;
+            }
             controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify({ type: 'text', content: tokenChunk })}\n\n`)
+              encoder.encode(
+                `data: ${JSON.stringify({ type: 'text', content: tokenChunk.content })}\n\n`
+              )
             );
           }
 

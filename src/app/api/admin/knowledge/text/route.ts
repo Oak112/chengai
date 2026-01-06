@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, DEFAULT_OWNER_ID, isSupabaseConfigured } from '@/lib/supabase';
 import { generateEmbeddingsBatched } from '@/lib/ai';
+import { slugify } from '@/lib/slug';
+import { createHash } from 'crypto';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -27,6 +29,13 @@ function chunkText(text: string, maxChunkSize = 1000): string[] {
   return chunks.filter((c) => c.trim().length >= 50);
 }
 
+function makeStableKbId(prefix: string, raw: string): string {
+  const normalized = String(raw || '').trim();
+  const slug = slugify(normalized) || 'untitled';
+  const hash = createHash('sha256').update(normalized).digest('hex').slice(0, 10);
+  return `${prefix}:${slug}:${hash}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     if (!isSupabaseConfigured()) {
@@ -47,12 +56,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'content is too short' }, { status: 400 });
     }
 
-    // Replace existing chunks for this title
+    const sourceId = makeStableKbId('kb:text', title);
+
+    // Replace existing chunks for this entry (scoped by type + stable source id)
     await supabaseAdmin
       .from('chunks')
       .delete()
       .eq('owner_id', DEFAULT_OWNER_ID)
-      .eq('metadata->>title', title);
+      .eq('source_type', sourceType)
+      .eq('source_id', sourceId);
 
     const chunks = chunkText(content, 1000);
 
@@ -60,11 +72,12 @@ export async function POST(request: NextRequest) {
     const rows = chunks.map((chunk, i) => ({
       owner_id: DEFAULT_OWNER_ID,
       source_type: sourceType,
-      source_id: title,
+      source_id: sourceId,
       content: chunk,
       embedding: embeddings[i],
       metadata: {
         title,
+        kb_id: sourceId,
         chunk_index: i,
         total_chunks: chunks.length,
         input_method: 'text',
@@ -87,6 +100,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       title,
+      sourceId,
       totalChunks: chunks.length,
       inserted: results.inserted,
       failed: results.failed,

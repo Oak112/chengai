@@ -39,7 +39,8 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [sources, setSources] = useState<ChunkReference[]>([]);
   const [mode, setMode] = useState<'auto' | 'tech' | 'behavior'>('auto');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const autoScrollRef = useRef(true);
 
   const suggestedPrompts = useMemo(
     () => [
@@ -80,16 +81,26 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
     }
   }, [messages, sources, mode]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-  };
-
   useEffect(() => {
-    scrollToBottom();
+    if (!autoScrollRef.current) return;
+    const id = requestAnimationFrame(() => {
+      const el = scrollContainerRef.current;
+      if (!el) return;
+      el.scrollTo({ top: el.scrollHeight, behavior: 'auto' });
+    });
+    return () => cancelAnimationFrame(id);
   }, [messages]);
+
+  const handleScroll = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    autoScrollRef.current = distanceFromBottom < 160;
+  };
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
+    autoScrollRef.current = true;
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -163,6 +174,10 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
                     ? { ...m, sources: parsed.sources as ChunkReference[] }
                     : m
                 )
+              );
+            } else if (parsed.type === 'replace' && typeof parsed.content === 'string') {
+              setMessages((prev) =>
+                prev.map((m) => (m.id === assistantId ? { ...m, content: parsed.content } : m))
               );
             } else if (parsed.type === 'text' && typeof parsed.content === 'string') {
               setMessages((prev) =>
@@ -252,7 +267,11 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
         </div>
       </div>
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4"
+      >
         {messages.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/15 to-purple-600/15 text-zinc-700 dark:text-zinc-200">
@@ -322,15 +341,14 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
             )}
           </div>
         ))}
-        <div ref={messagesEndRef} />
       </div>
       {/* Sources */}
-      {sources.length > 0 && (
-        <div className="border-t border-zinc-200/70 bg-zinc-50/60 px-4 py-3 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/40">
-          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-            <BookOpen className="h-3 w-3" />
-            <span>Sources used in the last answer</span>
-          </div>
+      <div className="min-h-[76px] border-t border-zinc-200/70 bg-zinc-50/60 px-4 py-3 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/40">
+        <div className="mb-2 flex items-center gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+          <BookOpen className="h-3 w-3" />
+          <span>Sources used in the last answer</span>
+        </div>
+        {sources.length > 0 ? (
           <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {sources.slice(0, 8).map((s) => {
               const href = getSourceHref(s);
@@ -353,8 +371,12 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
               );
             })}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="text-xs text-zinc-500 dark:text-zinc-400">
+            Sources will appear here after the next answer.
+          </div>
+        )}
+      </div>
       {/* Input */}
       <div className="border-t border-zinc-200/70 bg-white/60 p-4 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/40">
         <div className="flex gap-2">
