@@ -39,6 +39,7 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [sources, setSources] = useState<ChunkReference[]>([]);
   const [mode, setMode] = useState<'auto' | 'tech' | 'behavior'>('auto');
+  const [activeAssistantId, setActiveAssistantId] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
 
@@ -74,12 +75,13 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
 
   // Persist chat history
   useEffect(() => {
+    if (isLoading) return;
     try {
       localStorage.setItem('chengai_chat_v1', JSON.stringify({ messages, sources, mode }));
     } catch {
       // ignore
     }
-  }, [messages, sources, mode]);
+  }, [messages, sources, mode, isLoading]);
 
   useEffect(() => {
     if (!autoScrollRef.current) return;
@@ -110,6 +112,7 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
     };
 
     const assistantId = (Date.now() + 1).toString();
+    setActiveAssistantId(assistantId);
     if (messages.length === 0) {
       trackEvent('chat_started', { mode });
     }
@@ -205,6 +208,7 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
       });
     } finally {
       setIsLoading(false);
+      setActiveAssistantId(null);
     }
   };
 
@@ -319,9 +323,15 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
               {message.role === 'assistant' ? (
                 <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none">
                   {message.content ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {message.content}
-                    </ReactMarkdown>
+                    isLoading && activeAssistantId === message.id ? (
+                      <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                        {message.content}
+                      </div>
+                    ) : (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {message.content}
+                      </ReactMarkdown>
+                    )
                   ) : (
                     <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
                       <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-zinc-400 dark:bg-zinc-500" />
