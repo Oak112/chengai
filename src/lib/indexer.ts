@@ -1,5 +1,5 @@
 import { supabaseAdmin, DEFAULT_OWNER_ID, isSupabaseConfigured } from '@/lib/supabase';
-import { generateEmbedding } from '@/lib/ai';
+import { generateEmbedding, generateEmbeddingsBatched } from '@/lib/ai';
 
 type ChunkInsert = {
   owner_id: string;
@@ -92,24 +92,22 @@ export async function indexArticle(article: {
 }) {
   const parts = chunkText(article.content, 1000);
 
-  const chunks: ChunkInsert[] = [];
-  for (let i = 0; i < parts.length; i++) {
-    const content = `Article: ${article.title}\n\n${parts[i]}`;
-    const embedding = await generateEmbedding(content);
-    chunks.push({
-      owner_id: DEFAULT_OWNER_ID,
-      source_type: 'article',
-      source_id: article.id,
-      content,
-      embedding,
-      metadata: {
-        title: article.title,
-        slug: article.slug,
-        chunk_index: i,
-        total_chunks: parts.length,
-      },
-    });
-  }
+  const contents = parts.map((part) => `Article: ${article.title}\n\n${part}`);
+  const embeddings = await generateEmbeddingsBatched(contents, 32);
+
+  const chunks: ChunkInsert[] = contents.map((content, i) => ({
+    owner_id: DEFAULT_OWNER_ID,
+    source_type: 'article',
+    source_id: article.id,
+    content,
+    embedding: embeddings[i],
+    metadata: {
+      title: article.title,
+      slug: article.slug,
+      chunk_index: i,
+      total_chunks: parts.length,
+    },
+  }));
 
   await replaceChunks('article', article.id, chunks);
 }
@@ -178,4 +176,33 @@ export async function indexSkill(skill: {
   ];
 
   await replaceChunks('skill', skill.id, chunks);
+}
+
+export async function indexResume(resume: {
+  id?: string;
+  title?: string;
+  content: string;
+  owner_id?: string;
+}) {
+  const sourceId = resume.id || 'resume';
+  const title = resume.title || 'Resume';
+  const parts = chunkText(resume.content, 1000);
+
+  const contents = parts.map((part) => `Resume: ${title}\n\n${part}`);
+  const embeddings = await generateEmbeddingsBatched(contents, 32);
+
+  const chunks: ChunkInsert[] = contents.map((content, i) => ({
+    owner_id: DEFAULT_OWNER_ID,
+    source_type: 'resume',
+    source_id: sourceId,
+    content,
+    embedding: embeddings[i],
+    metadata: {
+      title,
+      chunk_index: i,
+      total_chunks: parts.length,
+    },
+  }));
+
+  await replaceChunks('resume', sourceId, chunks);
 }

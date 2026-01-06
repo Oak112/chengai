@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, DEFAULT_OWNER_ID, isSupabaseConfigured } from '@/lib/supabase';
-import { generateEmbedding } from '@/lib/ai';
+import { deleteSourceChunks, indexArticle, indexProject, indexSkill, indexStory } from '@/lib/indexer';
 
 export const runtime = 'nodejs';
 
@@ -16,138 +16,82 @@ export async function POST() {
       );
     }
 
-    // Get all projects
-    const { data: projects } = await supabaseAdmin
+    const { data: projects, error: projectsError } = await supabaseAdmin
       .from('projects')
-      .select('id, title, slug, description, subtitle')
+      .select('id, title, slug, description, subtitle, status')
       .eq('owner_id', DEFAULT_OWNER_ID)
-      .eq('status', 'published');
+      .is('deleted_at', null);
+    if (projectsError) throw projectsError;
 
-    // Get all articles
-    const { data: articles } = await supabaseAdmin
+    const { data: articles, error: articlesError } = await supabaseAdmin
       .from('articles')
-      .select('id, title, slug, content, summary')
+      .select('id, title, slug, content, summary, status')
       .eq('owner_id', DEFAULT_OWNER_ID)
-      .eq('status', 'published');
+      .order('updated_at', { ascending: false });
+    if (articlesError) throw articlesError;
 
-    // Get all stories
-    const { data: stories } = await supabaseAdmin
+    const { data: stories, error: storiesError } = await supabaseAdmin
       .from('stories')
-      .select('id, title, situation, task, action, result')
+      .select('id, title, situation, task, action, result, is_public')
       .eq('owner_id', DEFAULT_OWNER_ID)
-      .eq('is_public', true);
+      .order('updated_at', { ascending: false });
+    if (storiesError) throw storiesError;
 
-    // Get all skills
-    const { data: skills } = await supabaseAdmin
+    const { data: skills, error: skillsError } = await supabaseAdmin
       .from('skills')
       .select('id, name, category, proficiency, years_of_experience, icon, is_primary')
       .eq('owner_id', DEFAULT_OWNER_ID);
+    if (skillsError) throw skillsError;
 
-    // Clear existing chunks
-    await supabaseAdmin
-      .from('chunks')
-      .delete()
-      .eq('owner_id', DEFAULT_OWNER_ID);
+    const counts = {
+      projects_indexed: 0,
+      projects_removed: 0,
+      articles_indexed: 0,
+      articles_removed: 0,
+      stories_indexed: 0,
+      stories_removed: 0,
+      skills_indexed: 0,
+    };
 
-    const chunksToInsert: {
-      owner_id: string;
-      source_type: string;
-      source_id: string;
-      content: string;
-      embedding: number[];
-      metadata: Record<string, unknown>;
-    }[] = [];
-
-    // Process projects
     for (const project of projects || []) {
-      const content = `Project: ${project.title}\n${project.subtitle || ''}\n\n${project.description}`;
-      const embedding = await generateEmbedding(content);
-      
-      chunksToInsert.push({
-        owner_id: DEFAULT_OWNER_ID,
-        source_type: 'project',
-        source_id: project.id,
-        content,
-        embedding,
-        metadata: { title: project.title, slug: project.slug },
-      });
-    }
-
-    // Process articles
-    for (const article of articles || []) {
-      // Split article content into chunks of ~1000 chars
-      const chunks = splitIntoChunks(article.content, 1000);
-      
-      for (let i = 0; i < chunks.length; i++) {
-        const content = `Article: ${article.title}\n\n${chunks[i]}`;
-        const embedding = await generateEmbedding(content);
-        
-        chunksToInsert.push({
-          owner_id: DEFAULT_OWNER_ID,
-          source_type: 'article',
-          source_id: article.id,
-          content,
-          embedding,
-          metadata: { title: article.title, slug: article.slug, chunk_index: i },
-        });
+      const isPublished = project.status === 'published';
+      if (isPublished) {
+        await indexProject(project);
+        counts.projects_indexed++;
+      } else {
+        await deleteSourceChunks('project', project.id);
+        counts.projects_removed++;
       }
     }
 
-    // Process stories
+    for (const article of articles || []) {
+      const isPublished = article.status === 'published';
+      if (isPublished) {
+        await indexArticle(article);
+        counts.articles_indexed++;
+      } else {
+        await deleteSourceChunks('article', article.id);
+        counts.articles_removed++;
+      }
+    }
+
     for (const story of stories || []) {
-      const content = `Story: ${story.title}\n\nSituation: ${story.situation}\nTask: ${story.task}\nAction: ${story.action}\nResult: ${story.result}`;
-      const embedding = await generateEmbedding(content);
-      
-      chunksToInsert.push({
-        owner_id: DEFAULT_OWNER_ID,
-        source_type: 'story',
-        source_id: story.id,
-        content,
-        embedding,
-        metadata: { title: story.title },
-      });
+      const isPublic = Boolean(story.is_public);
+      if (isPublic) {
+        await indexStory(story);
+        counts.stories_indexed++;
+      } else {
+        await deleteSourceChunks('story', story.id);
+        counts.stories_removed++;
+      }
     }
 
-    // Process skills
     for (const skill of skills || []) {
-      const content = [
-        `Skill: ${skill.name}`,
-        skill.category ? `Category: ${skill.category}` : null,
-        typeof skill.proficiency === 'number' ? `Proficiency: ${skill.proficiency}/5` : null,
-        skill.years_of_experience != null ? `Years: ${skill.years_of_experience}` : null,
-        skill.is_primary ? 'Primary: yes' : 'Primary: no',
-      ]
-        .filter(Boolean)
-        .join('\n');
-
-      const embedding = await generateEmbedding(content);
-
-      chunksToInsert.push({
-        owner_id: DEFAULT_OWNER_ID,
-        source_type: 'skill',
-        source_id: skill.id,
-        content,
-        embedding,
-        metadata: { title: skill.name, skill_id: skill.id },
-      });
+      await indexSkill(skill);
+      counts.skills_indexed++;
     }
 
-    // Insert all chunks
-    if (chunksToInsert.length > 0) {
-      const { error } = await supabaseAdmin.from('chunks').insert(chunksToInsert);
-      if (error) throw error;
-    }
-
-    return NextResponse.json({
-      success: true,
-      chunks_created: chunksToInsert.length,
-      breakdown: {
-        projects: projects?.length || 0,
-        articles: articles?.length || 0,
-        stories: stories?.length || 0,
-        skills: skills?.length || 0,
-      },
-    });
+    return NextResponse.json({ success: true, counts });
   } catch (error) {
     console.error('Rebuild error:', error);
     return NextResponse.json(
@@ -155,24 +99,4 @@ export async function POST() {
       { status: 500 }
     );
   }
-}
-
-function splitIntoChunks(text: string, maxSize: number): string[] {
-  const paragraphs = text.split(/\n\n+/);
-  const chunks: string[] = [];
-  let current = '';
-
-  for (const para of paragraphs) {
-    if (current.length + para.length > maxSize && current) {
-      chunks.push(current.trim());
-      current = '';
-    }
-    current += para + '\n\n';
-  }
-
-  if (current.trim()) {
-    chunks.push(current.trim());
-  }
-
-  return chunks;
 }

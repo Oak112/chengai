@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Code, FileText, Briefcase, Database, ScrollText, BarChart3, LogOut, RefreshCw, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Code, FileText, Briefcase, Database, ScrollText, BarChart3, LogOut, RefreshCw, Loader2, CheckCircle, AlertCircle, IdCard } from 'lucide-react';
 
 function getCookieValue(name: string): string | null {
   if (typeof document === 'undefined') return null;
@@ -64,6 +64,13 @@ export default function AdminPage() {
       icon: Code,
       href: '/admin/projects',
       color: 'from-blue-500 to-blue-600',
+    },
+    {
+      title: 'Resume',
+      description: 'Upload and manage your resume',
+      icon: IdCard,
+      href: '/admin/resume',
+      color: 'from-indigo-500 to-indigo-600',
     },
     {
       title: 'Skills',

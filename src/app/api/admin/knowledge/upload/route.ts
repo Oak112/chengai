@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, DEFAULT_OWNER_ID, isSupabaseConfigured } from '@/lib/supabase';
-import { generateEmbedding } from '@/lib/ai';
+import { generateEmbeddingsBatched } from '@/lib/ai';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes for large files
@@ -158,41 +158,32 @@ export async function POST(request: NextRequest) {
     console.log(`Processing ${fileName}: ${chunks.length} chunks`);
 
     // Generate embeddings and insert chunks
+    const embeddings = await generateEmbeddingsBatched(chunks, 32);
+    const rows = chunks.map((chunk, i) => ({
+      owner_id: DEFAULT_OWNER_ID,
+      source_type: sourceType,
+      source_id: fileTitle,
+      content: chunk,
+      embedding: embeddings[i],
+      metadata: {
+        title: fileTitle,
+        original_filename: fileName,
+        chunk_index: i,
+        total_chunks: chunks.length,
+      },
+    }));
+
     const results = { inserted: 0, failed: 0 };
-
-    for (let i = 0; i < chunks.length; i++) {
-      try {
-        const embedding = await generateEmbedding(chunks[i]);
-
-        const { error } = await supabaseAdmin.from('chunks').insert({
-          owner_id: DEFAULT_OWNER_ID,
-          source_type: sourceType,
-          source_id: fileTitle,
-          content: chunks[i],
-          embedding,
-          metadata: {
-            title: fileTitle,
-            original_filename: fileName,
-            chunk_index: i,
-            total_chunks: chunks.length,
-          },
-        });
-
-        if (error) {
-          console.error(`Chunk ${i} insert error:`, error.message);
-          results.failed++;
-        } else {
-          results.inserted++;
-        }
-
-        // Rate limiting for OpenAI API
-        if (i < chunks.length - 1) {
-          await new Promise(r => setTimeout(r, 100));
-        }
-      } catch (embeddingError) {
-        console.error(`Chunk ${i} embedding error:`, embeddingError);
-        results.failed++;
+    const insertBatchSize = 200;
+    for (let i = 0; i < rows.length; i += insertBatchSize) {
+      const batch = rows.slice(i, i + insertBatchSize);
+      const { error } = await supabaseAdmin.from('chunks').insert(batch);
+      if (error) {
+        console.error('Batch insert error:', error.message);
+        results.failed += batch.length;
+        continue;
       }
+      results.inserted += batch.length;
     }
 
     return NextResponse.json({

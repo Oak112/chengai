@@ -24,30 +24,113 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   return response.data[0].embedding;
 }
 
+export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
+  if (!Array.isArray(texts) || texts.length === 0) return [];
+
+  const response = await openai.embeddings.create({
+    model: 'text-embedding-3-small',
+    input: texts,
+    dimensions: 1536,
+  });
+
+  const sorted = [...response.data].sort((a, b) => a.index - b.index);
+  return sorted.map((item) => item.embedding);
+}
+
+export async function generateEmbeddingsBatched(
+  texts: string[],
+  batchSize = 32
+): Promise<number[][]> {
+  if (!Array.isArray(texts) || texts.length === 0) return [];
+  const safeBatch = Math.max(1, Math.min(batchSize, 128));
+  const out: number[][] = [];
+
+  for (let i = 0; i < texts.length; i += safeBatch) {
+    const batch = texts.slice(i, i + safeBatch);
+    const embeddings = await generateEmbeddings(batch);
+    out.push(...embeddings);
+  }
+
+  return out;
+}
+
 export async function* streamChat(
   systemPrompt: string,
   userMessage: string,
   context: string,
   evidenceMarkdown?: string
 ): AsyncGenerator<string> {
-  // Gemini doesn't support streaming yet, so we use non-streaming and simulate chunked output
+  const model = process.env.AI_CHAT_MODEL || 'grok-4-fast';
+  const supportsStreaming = !model.startsWith('gemini');
+
+  const messages: { role: 'system' | 'user'; content: string }[] = [
+    { role: 'system', content: systemPrompt },
+    {
+      role: 'user',
+      content: `## Background Context\n${context}\n\n## User Question\n${userMessage}`,
+    },
+  ];
+
+  if (supportsStreaming) {
+    try {
+      const stream = await aiBuilders.chat.completions.create({
+        model,
+        messages,
+        stream: true,
+      });
+
+      const lookbehind = 40;
+      let buffer = '';
+      let stoppedAtEvidence = false;
+
+      for await (const chunk of stream) {
+        const delta = chunk.choices?.[0]?.delta?.content || '';
+        if (!delta || stoppedAtEvidence) continue;
+
+        buffer += delta;
+
+        const evidenceIndex = findEvidenceStart(buffer);
+        if (evidenceIndex >= 0) {
+          const safe = buffer.slice(0, evidenceIndex);
+          if (safe) yield safe;
+          buffer = '';
+          stoppedAtEvidence = true;
+          continue;
+        }
+
+        if (buffer.length > lookbehind) {
+          const emit = buffer.slice(0, buffer.length - lookbehind);
+          buffer = buffer.slice(buffer.length - lookbehind);
+          if (emit) yield emit;
+        }
+      }
+
+      if (!stoppedAtEvidence) {
+        const remainder = buffer.trimEnd();
+        if (remainder) yield remainder;
+      }
+
+      if (evidenceMarkdown?.trim()) {
+        yield `\n\n${evidenceMarkdown.trim()}`;
+      }
+
+      return;
+    } catch (error) {
+      console.warn('Streaming failed, falling back to non-streaming:', error);
+    }
+  }
+
   const response = await aiBuilders.chat.completions.create({
-    model: 'gemini-2.5-pro',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: `## Background Context\n${context}\n\n## User Question\n${userMessage}` },
-    ],
+    model: model || 'gemini-2.5-pro',
+    messages,
   });
 
   const content = response.choices[0]?.message?.content || '';
   const finalized = finalizeChatMarkdown(content, evidenceMarkdown);
 
-  // Simulate streaming by yielding the content in chunks
-  const chunkSize = 20; // characters per chunk
+  const chunkSize = 80;
   for (let i = 0; i < finalized.length; i += chunkSize) {
     yield finalized.slice(i, i + chunkSize);
-    // Small delay to simulate streaming (optional, for UX)
-    await new Promise(resolve => setTimeout(resolve, 10));
   }
 }
 
@@ -55,6 +138,24 @@ function finalizeChatMarkdown(raw: string, evidenceMarkdown?: string): string {
   const base = stripTrailingEvidenceSection(raw).trim();
   if (!evidenceMarkdown?.trim()) return base;
   return `${base}\n\n${evidenceMarkdown.trim()}`;
+}
+
+function findEvidenceStart(text: string): number {
+  const candidates = [
+    '\n## Evidence',
+    '\n### Evidence',
+    '\n#### Evidence',
+    '\n**Evidence**',
+    '\nEvidence:',
+  ];
+
+  let best = -1;
+  for (const needle of candidates) {
+    const idx = text.indexOf(needle);
+    if (idx === -1) continue;
+    if (best === -1 || idx < best) best = idx;
+  }
+  return best;
 }
 
 function stripTrailingEvidenceSection(text: string): string {

@@ -14,7 +14,7 @@ export default function Footer() {
           {/* Links */}
           <div className="flex items-center gap-4">
             <Link
-              href="https://github.com/tianlec"
+              href="https://github.com/Oak112"
               target="_blank"
               rel="noopener noreferrer"
               className="text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
@@ -23,7 +23,7 @@ export default function Footer() {
               <span className="sr-only">GitHub</span>
             </Link>
             <Link
-              href="https://linkedin.com/in/tianlec"
+              href="https://www.linkedin.com/in/charlie-tianle-cheng-6147a4325"
               target="_blank"
               rel="noopener noreferrer"
               className="text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
@@ -32,7 +32,7 @@ export default function Footer() {
               <span className="sr-only">LinkedIn</span>
             </Link>
             <Link
-              href="mailto:contact@tianlec.com"
+              href="mailto:tianlecheng112@gmail.com"
               className="text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
             >
               <Mail className="h-5 w-5" />

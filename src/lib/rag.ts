@@ -32,60 +32,58 @@ export async function retrieveContext(
   topK: number = 5,
   sourceTypes?: string[]
 ): Promise<RetrievalResult> {
-  // Generate embedding for the query
-  const queryEmbedding = await generateEmbedding(query);
-  
-  // Vector similarity search using Supabase pgvector
-  const baseRpcArgs: Record<string, unknown> = {
-    query_embedding: queryEmbedding,
-    match_threshold: 0.3, // Lower threshold for better recall
-    match_count: topK,
-    p_owner_id: DEFAULT_OWNER_ID,
-  };
+  const ftsPromise = (async () => {
+    let ftsQuery = supabaseAdmin.from('chunks').select('*').eq('owner_id', DEFAULT_OWNER_ID);
+    if (Array.isArray(sourceTypes) && sourceTypes.length > 0) {
+      ftsQuery = ftsQuery.in('source_type', sourceTypes);
+    }
 
-  const rpcArgs =
-    Array.isArray(sourceTypes) && sourceTypes.length > 0
-      ? { ...baseRpcArgs, p_source_types: sourceTypes }
-      : baseRpcArgs;
+    const attempt = await ftsQuery
+      .textSearch('fts_content', query, { type: 'websearch', config: 'english' })
+      .limit(topK);
 
-  let { data: vectorResults, error: vectorError } = await supabaseAdmin.rpc('match_chunks', rpcArgs);
+    if (!attempt.error) {
+      return { results: (attempt.data as Chunk[]) || null, error: null };
+    }
 
-  // Backward compatibility: older SQL function may not accept p_source_types
-  if (vectorError && rpcArgs !== baseRpcArgs) {
-    ({ data: vectorResults, error: vectorError } = await supabaseAdmin.rpc('match_chunks', baseRpcArgs));
-  }
-
-  if (vectorError) {
-    console.error('Vector search error:', vectorError);
-  }
-
-  // Full-text search using Postgres FTS
-  let ftsQuery = supabaseAdmin.from('chunks').select('*').eq('owner_id', DEFAULT_OWNER_ID);
-  if (Array.isArray(sourceTypes) && sourceTypes.length > 0) {
-    ftsQuery = ftsQuery.in('source_type', sourceTypes);
-  }
-
-  // Prefer indexed tsvector column if available; fall back to direct text search
-  let ftsResults: Chunk[] | null = null;
-  let ftsError: unknown = null;
-  const attempt = await ftsQuery
-    .textSearch('fts_content', query, { type: 'websearch', config: 'english' })
-    .limit(topK);
-
-  if (attempt.error) {
     const fallback = await ftsQuery
       .textSearch('content', query, { type: 'websearch', config: 'english' })
       .limit(topK);
-    ftsResults = (fallback.data as Chunk[]) || null;
-    ftsError = fallback.error;
-  } else {
-    ftsResults = (attempt.data as Chunk[]) || null;
-    ftsError = null;
-  }
 
-  if (ftsError) {
-    console.error('FTS search error:', ftsError);
-  }
+    return { results: (fallback.data as Chunk[]) || null, error: fallback.error };
+  })();
+
+  const queryEmbeddingPromise = generateEmbedding(query);
+  const queryEmbedding = await queryEmbeddingPromise;
+
+  const vectorPromise = (async () => {
+    const baseRpcArgs: Record<string, unknown> = {
+      query_embedding: queryEmbedding,
+      match_threshold: 0.3, // Lower threshold for better recall
+      match_count: topK,
+      p_owner_id: DEFAULT_OWNER_ID,
+    };
+
+    const rpcArgs =
+      Array.isArray(sourceTypes) && sourceTypes.length > 0
+        ? { ...baseRpcArgs, p_source_types: sourceTypes }
+        : baseRpcArgs;
+
+    let { data, error } = await supabaseAdmin.rpc('match_chunks', rpcArgs);
+
+    // Backward compatibility: older SQL function may not accept p_source_types
+    if (error && rpcArgs !== baseRpcArgs) {
+      ({ data, error } = await supabaseAdmin.rpc('match_chunks', baseRpcArgs));
+    }
+
+    return { results: (data as Chunk[]) || null, error };
+  })();
+
+  const [{ results: vectorResults, error: vectorError }, { results: ftsResults, error: ftsError }] =
+    await Promise.all([vectorPromise, ftsPromise]);
+
+  if (vectorError) console.error('Vector search error:', vectorError);
+  if (ftsError) console.error('FTS search error:', ftsError);
 
   // Merge and deduplicate results (RRF - Reciprocal Rank Fusion)
   const mergedResults = fuseResults(
