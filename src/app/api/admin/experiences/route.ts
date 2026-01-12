@@ -4,6 +4,18 @@ import { deleteSourceChunks, indexExperience } from '@/lib/indexer';
 
 export const runtime = 'nodejs';
 
+function isMissingTableError(error: unknown): boolean {
+  return (
+    Boolean(error) &&
+    typeof (error as { code?: unknown }).code === 'string' &&
+    ((error as { code: string }).code.toUpperCase() === '42P01')
+  );
+}
+
+function migrationHint() {
+  return 'Experiences table is not set up yet. Run `database/migrations/20260112_add_experiences.sql` in Supabase SQL Editor, then retry.';
+}
+
 type ExperiencePayload = {
   id?: string;
   company: string;
@@ -32,7 +44,12 @@ export async function GET() {
       .order('start_date', { ascending: false })
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      if (isMissingTableError(error)) {
+        return NextResponse.json({ error: migrationHint() }, { status: 501 });
+      }
+      throw error;
+    }
     return NextResponse.json(data || []);
   } catch (error) {
     console.error('Admin experiences GET error:', error);
@@ -75,7 +92,12 @@ export async function POST(request: NextRequest) {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (isMissingTableError(error)) {
+        return NextResponse.json({ error: migrationHint() }, { status: 501 });
+      }
+      throw error;
+    }
 
     if (data?.status === 'published') {
       await indexExperience(data);
@@ -124,7 +146,12 @@ export async function PUT(request: NextRequest) {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (isMissingTableError(error)) {
+        return NextResponse.json({ error: migrationHint() }, { status: 501 });
+      }
+      throw error;
+    }
 
     if (data?.status === 'published') {
       await indexExperience(data);
@@ -159,7 +186,12 @@ export async function DELETE(request: NextRequest) {
       .eq('id', id)
       .eq('owner_id', DEFAULT_OWNER_ID);
 
-    if (error) throw error;
+    if (error) {
+      if (isMissingTableError(error)) {
+        return NextResponse.json({ error: migrationHint() }, { status: 501 });
+      }
+      throw error;
+    }
 
     await deleteSourceChunks('experience', id);
 
@@ -169,4 +201,3 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-

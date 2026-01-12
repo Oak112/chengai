@@ -51,6 +51,7 @@ export default function AdminExperiencesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [draft, setDraft] = useState<ExperienceDraft>(emptyDraft);
   const [isSaving, setIsSaving] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const csrfToken = useMemo(() => getCookieValue('chengai_csrf'), []);
 
@@ -60,11 +61,18 @@ export default function AdminExperiencesPage() {
 
   const fetchExperiences = async () => {
     try {
+      setApiError(null);
       const response = await fetch('/api/admin/experiences');
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        setExperiences([]);
+        setApiError((data as { error?: string } | null)?.error || 'Failed to load experiences.');
+        return;
+      }
       setExperiences(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching experiences:', error);
+      setApiError('Failed to load experiences.');
     } finally {
       setIsLoading(false);
     }
@@ -203,6 +211,12 @@ export default function AdminExperiencesPage() {
           Add Experience
         </button>
       </div>
+
+      {apiError && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/30 dark:bg-amber-900/20 dark:text-amber-100">
+          {apiError}
+        </div>
+      )}
 
       {experiences.length === 0 ? (
         <div className="text-center py-12 border-2 border-dashed border-zinc-200 rounded-xl dark:border-zinc-700">
@@ -423,4 +437,3 @@ export default function AdminExperiencesPage() {
     </div>
   );
 }
-
