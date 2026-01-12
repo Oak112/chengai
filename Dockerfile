@@ -42,6 +42,11 @@ RUN chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Next.js standalone output tracing may omit pdf.js worker assets that are loaded dynamically.
+# Copy them explicitly so server-side PDF parsing (resume/knowledge uploads) works in production.
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs ./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs ./node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs
+
 USER nextjs
 
 EXPOSE 3000
