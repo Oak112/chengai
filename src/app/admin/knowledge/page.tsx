@@ -26,6 +26,7 @@ interface KnowledgeStats {
     resume: number;
     story: number;
     skill: number;
+    experience: number;
   };
 }
 
@@ -220,6 +221,7 @@ export default function AdminKnowledgePage() {
               <option value="story">Story</option>
               <option value="project">Project</option>
               <option value="skill">Skill</option>
+              <option value="experience">Experience</option>
             </select>
           </div>
 

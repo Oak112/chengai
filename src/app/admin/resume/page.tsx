@@ -28,7 +28,7 @@ export default function AdminResumePage() {
   const [resume, setResume] = useState<ResumeInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
-  const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(
+  const [status, setStatus] = useState<{ type: 'success' | 'warning' | 'error'; message: string } | null>(
     null
   );
 
@@ -70,7 +70,19 @@ export default function AdminResumePage() {
         throw new Error(data?.error || 'Upload failed');
       }
 
-      setStatus({ type: 'success', message: 'Resume uploaded and indexed for RAG.' });
+      const parts: string[] = [];
+      parts.push(data?.indexed ? 'Resume uploaded and indexed.' : 'Resume uploaded.');
+      if (data?.skills?.added) {
+        parts.push(`Imported ${data.skills.added} skills into Skills.`);
+      }
+      if (data?.warning) {
+        parts.push(String(data.warning));
+      }
+
+      setStatus({
+        type: data?.warning ? 'warning' : 'success',
+        message: parts.join(' '),
+      });
       await fetchResume();
     } catch (error) {
       console.error(error);
@@ -201,11 +213,15 @@ export default function AdminResumePage() {
             className={`mt-6 flex items-center gap-2 rounded-lg p-3 ${
               status.type === 'success'
                 ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300'
+                : status.type === 'warning'
+                  ? 'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200'
                 : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'
             }`}
           >
             {status.type === 'success' ? (
               <CheckCircle className="h-4 w-4" />
+            ) : status.type === 'warning' ? (
+              <AlertCircle className="h-4 w-4" />
             ) : (
               <AlertCircle className="h-4 w-4" />
             )}

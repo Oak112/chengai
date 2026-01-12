@@ -1,7 +1,7 @@
 import JDMatcher from '@/components/chat/JDMatcher';
 
 export const metadata = {
-  title: 'JD Match | Tianle Cheng',
+  title: 'JD Match | Charlie Cheng',
   description: 'See how my skills and experience match your job requirements',
 };
 
@@ -20,4 +20,3 @@ export default function JDMatchPage() {
     </div>
   );
 }
-

@@ -9,6 +9,7 @@ export async function GET() {
   try {
     const bucket = process.env.SUPABASE_RESUME_BUCKET || 'chengai-resume';
     const objectPath = process.env.SUPABASE_RESUME_PATH || 'resume.pdf';
+    const downloadName = 'Charlie_Cheng_resume.pdf';
     const isProd = process.env.NODE_ENV === 'production';
 
     if (isSupabaseConfigured()) {
@@ -18,7 +19,6 @@ export async function GET() {
           const arrayBuffer = await data.arrayBuffer();
           const fileBuffer = Buffer.from(arrayBuffer);
           const contentType = data.type || 'application/pdf';
-          const downloadName = objectPath.split('/').pop() || 'resume.pdf';
 
           return new NextResponse(fileBuffer, {
             headers: {
@@ -45,7 +45,7 @@ export async function GET() {
     return new NextResponse(fileBuffer, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': 'attachment; filename="Resume_TianleCheng.pdf"',
+        'Content-Disposition': `attachment; filename=\"${downloadName}\"`,
         'Cache-Control': 'public, max-age=3600',
       },
     });

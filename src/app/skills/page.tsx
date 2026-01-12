@@ -2,7 +2,7 @@ import { supabase, DEFAULT_OWNER_ID } from '@/lib/supabase';
 import type { Skill } from '@/types';
 
 export const metadata = {
-  title: 'Skills | Tianle Cheng',
+  title: 'Skills | Charlie Cheng',
   description: 'Technical skills with evidence from real projects',
 };
 

@@ -8,7 +8,7 @@ import { createHash } from 'crypto';
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes for large files
 
-const ALLOWED_SOURCE_TYPES = new Set(['article', 'resume', 'story', 'project', 'skill']);
+const ALLOWED_SOURCE_TYPES = new Set(['article', 'resume', 'story', 'project', 'skill', 'experience']);
 
 function makeStableKbId(prefix: string, raw: string): string {
   const normalized = String(raw || '').trim();

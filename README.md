@@ -1,13 +1,14 @@
 # ChengAI - Personal Website & AI Digital Twin
 
-A personal portfolio and AI digital twin for Tianle Cheng, built with Next.js 16 and powered by RAG (Retrieval-Augmented Generation).
+A personal portfolio and AI digital twin for Charlie Cheng, built with Next.js 16 and powered by RAG (Retrieval-Augmented Generation).
 
 ## Features
 
-- **AI Chat**: Conversational AI that can answer questions about Tianle's background, projects, and skills
-- **JD Matcher**: AI-powered tool to analyze job descriptions and match them to Tianle's experience
+- **AI Chat**: Conversational AI that can answer questions about Charlie's background, projects, and skills
+- **JD Matcher**: AI-powered tool to analyze job descriptions and match them to Charlie's experience
 - **Projects Portfolio**: Showcase of projects with descriptions and links
 - **Skills Overview**: Categorized display of technical and professional skills
+- **Experience**: Work experience section with admin-managed entries (and indexed for RAG)
 - **Articles/Blog**: Markdown-based articles with full rendering
 - **Admin Dashboard**: Content management for projects, skills, articles, and knowledge base
 

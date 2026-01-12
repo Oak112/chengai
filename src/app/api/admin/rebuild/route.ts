@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, DEFAULT_OWNER_ID, isSupabaseConfigured } from '@/lib/supabase';
-import { deleteSourceChunks, indexArticle, indexProject, indexSkill, indexStory } from '@/lib/indexer';
+import { deleteSourceChunks, indexArticle, indexProject, indexSkill, indexStory, indexExperience } from '@/lib/indexer';
 
 export const runtime = 'nodejs';
 
@@ -43,6 +43,21 @@ export async function POST() {
       .eq('owner_id', DEFAULT_OWNER_ID);
     if (skillsError) throw skillsError;
 
+    const { data: experiences, error: experiencesError } = await supabaseAdmin
+      .from('experiences')
+      .select(
+        'id, company, role, location, employment_type, start_date, end_date, summary, highlights, tech_stack, status'
+      )
+      .eq('owner_id', DEFAULT_OWNER_ID)
+      .order('start_date', { ascending: false });
+
+    // If the table hasn't been migrated yet, skip instead of failing the whole rebuild.
+    const shouldSkipExperiences =
+      Boolean(experiencesError) &&
+      typeof (experiencesError as { code?: unknown }).code === 'string' &&
+      (experiencesError as { code: string }).code.toUpperCase() === '42P01';
+    if (experiencesError && !shouldSkipExperiences) throw experiencesError;
+
     const counts = {
       projects_indexed: 0,
       projects_removed: 0,
@@ -51,6 +66,8 @@ export async function POST() {
       stories_indexed: 0,
       stories_removed: 0,
       skills_indexed: 0,
+      experiences_indexed: 0,
+      experiences_removed: 0,
     };
 
     for (const project of projects || []) {
@@ -89,6 +106,19 @@ export async function POST() {
     for (const skill of skills || []) {
       await indexSkill(skill);
       counts.skills_indexed++;
+    }
+
+    if (!shouldSkipExperiences) {
+      for (const exp of experiences || []) {
+        const isPublished = exp.status === 'published';
+        if (isPublished) {
+          await indexExperience(exp);
+          counts.experiences_indexed++;
+        } else {
+          await deleteSourceChunks('experience', exp.id);
+          counts.experiences_removed++;
+        }
+      }
     }
 
     return NextResponse.json({ success: true, counts });

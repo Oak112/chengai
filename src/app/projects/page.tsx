@@ -4,7 +4,7 @@ import { ExternalLink, Github, FileText } from 'lucide-react';
 import type { Project } from '@/types';
 
 export const metadata = {
-  title: 'Projects | Tianle Cheng',
+  title: 'Projects | Charlie Cheng',
   description: 'Explore my portfolio of projects',
 };
 

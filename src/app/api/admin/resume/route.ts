@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, DEFAULT_OWNER_ID, isSupabaseConfigured } from '@/lib/supabase';
+import { supabaseAdmin, DEFAULT_OWNER_ID, isSupabaseAdminConfigured } from '@/lib/supabase';
 import { indexResume, deleteSourceChunks } from '@/lib/indexer';
 import { extractTextFromPdf } from '@/lib/pdf';
+import { importSkillsFromText } from '@/lib/skills-import';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -48,8 +49,11 @@ async function extractText(fileName: string, buffer: Buffer): Promise<string> {
 
 export async function GET() {
   try {
-    if (!isSupabaseConfigured()) {
-      return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    if (!isSupabaseAdminConfigured()) {
+      return NextResponse.json(
+        { error: 'Admin storage is not configured (missing SUPABASE_SERVICE_ROLE_KEY).' },
+        { status: 500 }
+      );
     }
 
     await ensureResumeBucket();
@@ -78,14 +82,20 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Admin resume GET error:', error);
-    return NextResponse.json({ error: 'Failed to fetch resume status' }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to fetch resume status' },
+      { status: 500 }
+    );
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    if (!isSupabaseConfigured()) {
-      return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    if (!isSupabaseAdminConfigured()) {
+      return NextResponse.json(
+        { error: 'Admin storage is not configured (missing SUPABASE_SERVICE_ROLE_KEY).' },
+        { status: 500 }
+      );
     }
 
     await ensureResumeBucket();
@@ -121,32 +131,64 @@ export async function POST(request: NextRequest) {
 
     if (uploadError) throw uploadError;
 
-    const text = (await extractText(fileName, buffer)).trim();
-    if (text.length < 50) {
-      return NextResponse.json(
-        { error: 'Could not extract meaningful text from the resume file' },
-        { status: 400 }
-      );
+    let extractedText = '';
+    let indexed = false;
+    let skills: { added: number; skipped: number } | null = null;
+    let warning: string | null = null;
+
+    try {
+      extractedText = (await extractText(fileName, buffer)).trim();
+      if (extractedText.length < 50) {
+        warning = 'Uploaded file, but could not extract meaningful text for indexing.';
+      } else {
+        await indexResume({
+          id: 'resume',
+          title: 'Resume',
+          content: extractedText,
+          owner_id: DEFAULT_OWNER_ID,
+        });
+        indexed = true;
+
+        try {
+          const imported = await importSkillsFromText(extractedText);
+          skills = { added: imported.added, skipped: imported.skipped };
+        } catch (skillError) {
+          console.warn('Resume skill import failed:', skillError);
+          warning = warning
+            ? `${warning} (Also failed to import skills from resume text.)`
+            : 'Uploaded and indexed resume, but failed to import skills from resume text.';
+        }
+      }
+    } catch (extractError) {
+      console.warn('Resume text extraction/indexing failed:', extractError);
+      warning =
+        'Uploaded file successfully, but resume text extraction/indexing failed. Check server logs and ensure OPENAI_API_KEY is configured for embeddings.';
     }
 
-    await indexResume({
-      id: 'resume',
-      title: 'Resume',
-      content: text,
-      owner_id: DEFAULT_OWNER_ID,
+    return NextResponse.json({
+      success: true,
+      bucket: RESUME_BUCKET,
+      path: RESUME_OBJECT_PATH,
+      indexed,
+      skills,
+      warning,
     });
-
-    return NextResponse.json({ success: true, bucket: RESUME_BUCKET, path: RESUME_OBJECT_PATH });
   } catch (error) {
     console.error('Admin resume POST error:', error);
-    return NextResponse.json({ error: 'Failed to upload resume' }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to upload resume' },
+      { status: 500 }
+    );
   }
 }
 
 export async function DELETE() {
   try {
-    if (!isSupabaseConfigured()) {
-      return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    if (!isSupabaseAdminConfigured()) {
+      return NextResponse.json(
+        { error: 'Admin storage is not configured (missing SUPABASE_SERVICE_ROLE_KEY).' },
+        { status: 500 }
+      );
     }
 
     await ensureResumeBucket();
@@ -159,6 +201,9 @@ export async function DELETE() {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Admin resume DELETE error:', error);
-    return NextResponse.json({ error: 'Failed to delete resume' }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to delete resume' },
+      { status: 500 }
+    );
   }
 }

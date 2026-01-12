@@ -7,7 +7,7 @@ import { createHash } from 'crypto';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
-const ALLOWED_SOURCE_TYPES = new Set(['article', 'resume', 'story', 'project', 'skill']);
+const ALLOWED_SOURCE_TYPES = new Set(['article', 'resume', 'story', 'project', 'skill', 'experience']);
 
 function chunkText(text: string, maxChunkSize = 1000): string[] {
   const paragraphs = text.split(/\n\n+/);

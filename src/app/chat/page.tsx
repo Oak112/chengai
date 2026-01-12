@@ -1,11 +1,20 @@
 import ChatInterface from '@/components/chat/ChatInterface';
 
 export const metadata = {
-  title: 'Chat with AI | Tianle Cheng',
+  title: 'Chat with AI | Charlie Cheng',
   description: 'Ask my AI about my projects, skills, and experience',
 };
 
-export default function ChatPage() {
+export default function ChatPage({
+  searchParams,
+}: {
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
+  const initialMessage = typeof searchParams?.q === 'string' ? searchParams.q : undefined;
+  const rawMode = typeof searchParams?.mode === 'string' ? searchParams.mode : undefined;
+  const initialMode =
+    rawMode === 'auto' || rawMode === 'tech' || rawMode === 'behavior' ? rawMode : undefined;
+
   return (
     <div className="relative">
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
@@ -15,7 +24,7 @@ export default function ChatPage() {
 
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="h-[calc(100vh-10rem)]">
-          <ChatInterface />
+          <ChatInterface initialMessage={initialMessage} initialMode={initialMode} />
         </div>
       </div>
     </div>

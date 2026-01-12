@@ -2,7 +2,7 @@
   "name": "chengai",
   "version": "1.0.0",
   "private": true,
-  "description": "Personal website and AI digital twin of Tianle Cheng",
+  "description": "Personal website and AI digital twin of Charlie Cheng",
   "scripts": {
     "dev": "next dev --port 9527",
     "build": "next build",

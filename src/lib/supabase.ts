@@ -36,3 +36,8 @@ export const DEFAULT_OWNER_ID =
 export function isSupabaseConfigured(): boolean {
   return Boolean(supabaseUrl && supabaseAnonKey);
 }
+
+// Helper to check if admin (service role) access is configured
+export function isSupabaseAdminConfigured(): boolean {
+  return Boolean(supabaseUrl && supabaseServiceKey);
+}

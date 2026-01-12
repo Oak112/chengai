@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { Menu, X, MessageSquare, Briefcase, Code, FileText, User, ScrollText } from 'lucide-react';
+import { Menu, X, MessageSquare, Briefcase, Code, FileText, User, ScrollText, Building2 } from 'lucide-react';
 
 const navItems = [
   { href: '/', label: 'Home', icon: User },
+  { href: '/experience', label: 'Experience', icon: Building2 },
   { href: '/projects', label: 'Projects', icon: Code },
   { href: '/skills', label: 'Skills', icon: Briefcase },
   { href: '/articles', label: 'Articles', icon: FileText },
@@ -29,7 +30,7 @@ export default function Header() {
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-sm">
-            <span className="text-sm font-bold text-white">TC</span>
+            <span className="text-sm font-bold text-white">CC</span>
           </div>
           <span className="text-lg font-semibold text-zinc-900 dark:text-white">
             ChengAI

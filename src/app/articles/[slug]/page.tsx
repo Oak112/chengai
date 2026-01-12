@@ -36,7 +36,7 @@ export async function generateMetadata({ params }: PageProps) {
   }
 
   return {
-    title: `${article.title} | Tianle Cheng`,
+    title: `${article.title} | Charlie Cheng`,
     description: article.summary || article.content.slice(0, 160),
   };
 }
@@ -103,4 +103,3 @@ export default async function ArticlePage({ params }: PageProps) {
     </div>
   );
 }
-

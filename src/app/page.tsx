@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MessageSquare, Briefcase, ArrowRight, Code, FileText, Download } from "lucide-react";
+import { MessageSquare, Briefcase, ArrowRight, Code, FileText, Download, Building2 } from "lucide-react";
 import ResumeDownloadLink from "@/components/ResumeDownloadLink";
 
 export default function Home() {
@@ -11,16 +11,19 @@ export default function Home() {
           <div className="text-center">
             {/* Avatar */}
             <div className="mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-4xl font-bold text-white shadow-lg">
-              TC
+              CC
             </div>
 
             <h1 className="text-4xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-6xl">
-              Hi, I&apos;m <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">Tianle Cheng</span>
+              Hi, I&apos;m{' '}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
+                Charlie Cheng
+              </span>
             </h1>
 
             <p className="mx-auto mt-6 max-w-2xl text-lg text-zinc-600 dark:text-zinc-400">
-              Full Stack Developer & AI Enthusiast. I build intelligent applications
-              that solve real problems. Chat with my AI to learn more about me!
+              Full-stack developer building evidence-first AI products and polished web experiences.
+              Chat with my AI twin, match a job description, or run a mock interview.
             </p>
 
             {/* CTA Buttons */}
@@ -48,8 +51,56 @@ export default function Home() {
                 className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
               >
                 <Download className="h-4 w-4" />
-                Download Resume (PDF)
+                Download My Resume (PDF)
               </ResumeDownloadLink>
+            </div>
+
+            {/* Playful shortcuts */}
+            <div className="mt-8 flex flex-wrap justify-center gap-2">
+              <Link
+                href={{
+                  pathname: '/chat',
+                  query: { q: 'Give me a 30-second intro, then list your strongest projects.' },
+                }}
+                className="rounded-full border border-zinc-200 bg-white/70 px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:bg-white dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-200 dark:hover:bg-zinc-950"
+              >
+                30-sec intro
+              </Link>
+              <Link
+                href={{
+                  pathname: '/chat',
+                  query: {
+                    q: 'Mock interview (technical): answer like a candidate, then ask me one follow-up question.',
+                    mode: 'tech',
+                  },
+                }}
+                className="rounded-full border border-zinc-200 bg-white/70 px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:bg-white dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-200 dark:hover:bg-zinc-950"
+              >
+                Mock interview (tech)
+              </Link>
+              <Link
+                href={{
+                  pathname: '/chat',
+                  query: {
+                    q: 'Mock interview (behavioral): answer in STAR, then ask me one follow-up question.',
+                    mode: 'behavior',
+                  },
+                }}
+                className="rounded-full border border-zinc-200 bg-white/70 px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:bg-white dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-200 dark:hover:bg-zinc-950"
+              >
+                Mock interview (STAR)
+              </Link>
+              <Link
+                href={{
+                  pathname: '/chat',
+                  query: {
+                    q: 'Write a concise referral message + cover letter. Ask me to paste the JD if needed.',
+                  },
+                }}
+                className="rounded-full border border-zinc-200 bg-white/70 px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:bg-white dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-200 dark:hover:bg-zinc-950"
+              >
+                Referral + cover letter
+              </Link>
             </div>
           </div>
         </div>
@@ -68,7 +119,24 @@ export default function Home() {
             Explore My Work
           </h2>
 
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {/* Experience Card */}
+            <Link
+              href="/experience"
+              className="group rounded-2xl border border-zinc-200 bg-white p-6 transition-all hover:border-teal-500 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
+            >
+              <Building2 className="h-8 w-8 text-teal-600 mb-4" />
+              <h3 className="text-lg font-semibold text-zinc-900 dark:text-white group-hover:text-teal-600">
+                Experience
+              </h3>
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                A quick read on roles, impact, and what I shipped.
+              </p>
+              <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-teal-600">
+                View Experience <ArrowRight className="h-4 w-4" />
+              </span>
+            </Link>
+
             {/* Projects Card */}
             <Link
               href="/projects"

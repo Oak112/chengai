@@ -15,13 +15,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Tianle Cheng | AI Digital Twin",
-  description: "Personal website and AI digital twin of Tianle Cheng - Full Stack Developer & AI Enthusiast",
-  keywords: ["Tianle Cheng", "AI", "Developer", "Portfolio", "Digital Twin"],
-  authors: [{ name: "Tianle Cheng" }],
+  title: "Charlie Cheng | ChengAI",
+  description:
+    "Personal website and AI digital twin of Charlie Cheng — full-stack developer building evidence-first AI products.",
+  keywords: ["Charlie Cheng", "AI", "Developer", "Portfolio", "Digital Twin", "RAG"],
+  authors: [{ name: "Charlie Cheng" }],
   openGraph: {
-    title: "Tianle Cheng | AI Digital Twin",
-    description: "Chat with my AI to learn about my projects and experience",
+    title: "Charlie Cheng | ChengAI",
+    description: "Chat with my AI twin to explore projects, experience, and skills",
     type: "website",
   },
 };

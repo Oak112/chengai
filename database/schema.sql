@@ -83,12 +83,29 @@ create table if not exists stories (
 create table if not exists chunks (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null,
-  source_type text not null check (source_type in ('project', 'article', 'resume', 'story', 'skill')),
+  source_type text not null check (source_type in ('project', 'article', 'resume', 'story', 'skill', 'experience')),
   source_id text not null,
   content text not null,
   embedding vector(1536),
   metadata jsonb default '{}'::jsonb,
   created_at timestamptz default now()
+);
+
+create table if not exists experiences (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null,
+  company text not null,
+  role text not null,
+  location text,
+  employment_type text,
+  start_date date,
+  end_date date,
+  summary text,
+  highlights text[] default '{}',
+  tech_stack text[] default '{}',
+  status text default 'published' check (status in ('draft', 'published', 'archived')),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 alter table chunks
@@ -102,6 +119,8 @@ create index if not exists idx_chunks_owner on chunks(owner_id);
 create index if not exists idx_chunks_source on chunks(owner_id, source_type, source_id);
 create index if not exists idx_chunks_fts on chunks using gin(fts_content);
 create index if not exists idx_chunks_embedding on chunks using ivfflat (embedding vector_cosine_ops) with (lists = 100);
+create index if not exists idx_experiences_owner_status on experiences(owner_id, status);
+create index if not exists idx_experiences_owner_dates on experiences(owner_id, start_date desc);
 
 -- Anonymous analytics events (stored via server-side API)
 create table if not exists events (
@@ -164,6 +183,7 @@ alter table skills enable row level security;
 alter table articles enable row level security;
 alter table stories enable row level security;
 alter table chunks enable row level security;
+alter table experiences enable row level security;
 alter table events enable row level security;
 
 create policy "Public read projects" on projects for select
@@ -174,3 +194,6 @@ create policy "Public read articles" on articles for select
   using (status = 'published');
 create policy "Public read stories" on stories for select
   using (is_public = true);
+
+create policy "Public read experiences" on experiences for select
+  using (status = 'published');

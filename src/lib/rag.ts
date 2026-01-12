@@ -13,6 +13,7 @@ function getSourceHref(source: ChunkReference): string | null {
   const type = source.source_type;
   if (type === 'article' && source.source_slug) return `/articles/${source.source_slug}`;
   if (type === 'project' && source.source_slug) return `/projects/${source.source_slug}`;
+  if (type === 'experience') return '/experience';
   if (type === 'resume') return '/api/resume';
   if (type === 'story') return '/stories';
   if (type === 'skill') return '/skills';

@@ -11,23 +11,44 @@ type ChunkInsert = {
 };
 
 function chunkText(text: string, maxChunkSize = 1000): string[] {
-  const paragraphs = text.split(/\n\n+/);
+  const normalized = String(text || '').replace(/\r\n/g, '\n').trim();
+  if (!normalized) return [];
+
   const chunks: string[] = [];
   let currentChunk = '';
 
-  for (const para of paragraphs) {
-    if (currentChunk.length + para.length > maxChunkSize && currentChunk) {
-      chunks.push(currentChunk.trim());
-      currentChunk = '';
+  const paragraphSplit = normalized.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  const units = paragraphSplit.length > 1 ? paragraphSplit : normalized.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+
+  const pushChunk = () => {
+    const trimmed = currentChunk.trim();
+    if (trimmed.length >= 50) chunks.push(trimmed);
+    currentChunk = '';
+  };
+
+  for (const unit of units) {
+    if (!unit) continue;
+
+    // If a single unit is too large, flush current chunk and hard-split it.
+    if (unit.length > maxChunkSize) {
+      if (currentChunk) pushChunk();
+      for (let i = 0; i < unit.length; i += maxChunkSize) {
+        const slice = unit.slice(i, i + maxChunkSize).trim();
+        if (slice.length >= 50) chunks.push(slice);
+      }
+      continue;
     }
-    currentChunk += para + '\n\n';
+
+    if (currentChunk.length + unit.length + 2 > maxChunkSize && currentChunk) {
+      pushChunk();
+    }
+
+    currentChunk += (currentChunk ? '\n\n' : '') + unit;
   }
 
-  if (currentChunk.trim()) {
-    chunks.push(currentChunk.trim());
-  }
+  if (currentChunk) pushChunk();
 
-  return chunks.filter((c) => c.trim().length >= 50);
+  return chunks;
 }
 
 async function replaceChunks(sourceType: string, sourceId: string, chunks: ChunkInsert[]) {
@@ -138,6 +159,62 @@ export async function indexStory(story: {
   ];
 
   await replaceChunks('story', story.id, chunks);
+}
+
+export async function indexExperience(experience: {
+  id: string;
+  company: string;
+  role: string;
+  location?: string | null;
+  employment_type?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  summary?: string | null;
+  highlights?: string[] | null;
+  tech_stack?: string[] | null;
+}) {
+  const title = `${experience.role} @ ${experience.company}`;
+  const dates =
+    experience.start_date || experience.end_date
+      ? `Dates: ${experience.start_date || 'n/a'} — ${experience.end_date || 'Present'}`
+      : null;
+  const meta = [
+    `Experience: ${title}`,
+    experience.location ? `Location: ${experience.location}` : null,
+    experience.employment_type ? `Type: ${experience.employment_type}` : null,
+    dates,
+    Array.isArray(experience.tech_stack) && experience.tech_stack.length > 0
+      ? `Tech: ${experience.tech_stack.join(', ')}`
+      : null,
+    experience.summary ? `Summary: ${experience.summary}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const highlights = Array.isArray(experience.highlights)
+    ? experience.highlights.filter((h) => String(h || '').trim())
+    : [];
+
+  const body = highlights.length > 0 ? `\n\nHighlights:\n- ${highlights.join('\n- ')}` : '';
+  const parts = chunkText(`${meta}${body}`, 1000);
+
+  const contents = parts.map((part) => part);
+  const embeddings = await generateEmbeddingsBatched(contents, 32);
+
+  const chunks: ChunkInsert[] = contents.map((content, i) => ({
+    owner_id: DEFAULT_OWNER_ID,
+    source_type: 'experience',
+    source_id: experience.id,
+    content,
+    embedding: embeddings[i],
+    metadata: {
+      title,
+      chunk_index: i,
+      total_chunks: parts.length,
+    },
+  }));
+
+  await replaceChunks('experience', experience.id, chunks);
 }
 
 export async function indexSkill(skill: {

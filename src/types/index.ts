@@ -58,7 +58,7 @@ export interface Article {
 export interface Chunk {
   id: string;
   owner_id: string;
-  source_type: 'project' | 'article' | 'resume' | 'story' | 'skill';
+  source_type: 'project' | 'article' | 'resume' | 'story' | 'skill' | 'experience';
   source_id: string | null;
   content: string;
   embedding: number[] | null;
@@ -78,6 +78,23 @@ export interface Story {
   project_id: string | null;
   is_public?: boolean;
   redacted?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Experience {
+  id: string;
+  owner_id: string;
+  company: string;
+  role: string;
+  location: string | null;
+  employment_type: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  summary: string | null;
+  highlights: string[];
+  tech_stack: string[];
+  status: 'draft' | 'published' | 'archived';
   created_at: string;
   updated_at: string;
 }

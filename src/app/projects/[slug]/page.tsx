@@ -35,7 +35,7 @@ export async function generateMetadata({ params }: PageProps) {
   }
 
   return {
-    title: `${project.title} | Tianle Cheng`,
+    title: `${project.title} | Charlie Cheng`,
     description: project.subtitle || project.description.slice(0, 160),
   };
 }
@@ -126,4 +126,3 @@ export default async function ProjectPage({ params }: PageProps) {
     </div>
   );
 }
-

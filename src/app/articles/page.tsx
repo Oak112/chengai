@@ -4,7 +4,7 @@ import { Calendar } from 'lucide-react';
 import type { Article } from '@/types';
 
 export const metadata = {
-  title: 'Articles | Tianle Cheng',
+  title: 'Articles | Charlie Cheng',
   description: 'Thoughts on AI, software development, and building products',
 };
 

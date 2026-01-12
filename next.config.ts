@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // Avoid bundling heavy / worker-based server deps into Next server chunks.
+  // This fixes pdf.js worker resolution issues in server runtimes.
+  serverExternalPackages: ['pdf-parse', 'pdfjs-dist', 'mammoth'],
 
   // Image optimization
   images: {

@@ -8,7 +8,7 @@ export default function Footer() {
         <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
           {/* Copyright */}
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            © {new Date().getFullYear()} Tianle Cheng. Built with ChengAI.
+            © {new Date().getFullYear()} Charlie Cheng. Built with ChengAI.
           </p>
 
           {/* Links */}
@@ -32,7 +32,7 @@ export default function Footer() {
               <span className="sr-only">LinkedIn</span>
             </Link>
             <Link
-              href="mailto:tianlecheng112@gmail.com"
+              href="mailto:charliecheng112@gmail.com"
               className="text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
             >
               <Mail className="h-5 w-5" />

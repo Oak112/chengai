@@ -73,6 +73,7 @@ export async function GET() {
         resume: chunks?.filter(c => c.source_type === 'resume').length || 0,
         story: chunks?.filter(c => c.source_type === 'story').length || 0,
         skill: chunks?.filter(c => c.source_type === 'skill').length || 0,
+        experience: chunks?.filter(c => c.source_type === 'experience').length || 0,
       },
     };
 

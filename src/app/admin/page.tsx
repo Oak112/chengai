@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Code, FileText, Briefcase, Database, ScrollText, BarChart3, LogOut, RefreshCw, Loader2, CheckCircle, AlertCircle, IdCard } from 'lucide-react';
+import { Code, FileText, Briefcase, Database, ScrollText, BarChart3, LogOut, RefreshCw, Loader2, CheckCircle, AlertCircle, IdCard, Building2 } from 'lucide-react';
 
 function getCookieValue(name: string): string | null {
   if (typeof document === 'undefined') return null;
@@ -71,6 +71,13 @@ export default function AdminPage() {
       icon: IdCard,
       href: '/admin/resume',
       color: 'from-indigo-500 to-indigo-600',
+    },
+    {
+      title: 'Experience',
+      description: 'Manage work experience entries',
+      icon: Building2,
+      href: '/admin/experiences',
+      color: 'from-teal-500 to-teal-600',
     },
     {
       title: 'Skills',

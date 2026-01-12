@@ -4,7 +4,7 @@ import type { Story } from '@/types';
 import { ArrowRight } from 'lucide-react';
 
 export const metadata = {
-  title: 'Stories | Tianle Cheng',
+  title: 'Stories | Charlie Cheng',
   description: 'Behavioral interview stories (STAR format)',
 };
 

@@ -9,12 +9,29 @@ import type { ChatMessage, ChunkReference } from '@/types';
 
 interface ChatInterfaceProps {
   initialMessage?: string;
+  initialMode?: 'auto' | 'tech' | 'behavior';
+}
+
+function dedupeSources(sources: ChunkReference[]): ChunkReference[] {
+  const out: ChunkReference[] = [];
+  const seen = new Set<string>();
+
+  for (const s of sources || []) {
+    const slugOrTitle = s.source_slug || s.source_title || s.source_id || '';
+    const key = `${s.source_type || 'unknown'}:${slugOrTitle}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(s);
+  }
+
+  return out;
 }
 
 function getSourceHref(source: ChunkReference): string | null {
   const type = source.source_type;
   if (type === 'article' && source.source_slug) return `/articles/${source.source_slug}`;
   if (type === 'project' && source.source_slug) return `/projects/${source.source_slug}`;
+  if (type === 'experience') return '/experience';
   if (type === 'resume') return '/api/resume';
   if (type === 'story') return '/stories';
   if (type === 'skill') return '/skills';
@@ -33,22 +50,21 @@ function trackEvent(type: string, meta?: Record<string, unknown>) {
   }
 }
 
-export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
+export default function ChatInterface({ initialMessage, initialMode }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState(initialMessage || '');
   const [isLoading, setIsLoading] = useState(false);
-  const [sources, setSources] = useState<ChunkReference[]>([]);
-  const [mode, setMode] = useState<'auto' | 'tech' | 'behavior'>('auto');
+  const [mode, setMode] = useState<'auto' | 'tech' | 'behavior'>(initialMode || 'auto');
   const [activeAssistantId, setActiveAssistantId] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
 
   const suggestedPrompts = useMemo(
     () => [
-      'Give me a quick overview of your strongest projects.',
-      'What kind of roles are you looking for right now?',
-      'Which skills best represent you, with evidence?',
-      'Help me evaluate this JD against your profile.',
+      'Give me a 30-second intro — who are you and what do you build?',
+      'Which skills best represent you? Keep it concrete.',
+      'Interview question: Tell me about a challenging project and your trade-offs.',
+      'Paste a JD and match it to your profile.',
     ],
     []
   );
@@ -60,28 +76,26 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
       if (!raw) return;
       const parsed = JSON.parse(raw) as {
         messages?: ChatMessage[];
-        sources?: ChunkReference[];
         mode?: 'auto' | 'tech' | 'behavior';
       };
       if (Array.isArray(parsed.messages)) setMessages(parsed.messages);
-      if (Array.isArray(parsed.sources)) setSources(parsed.sources);
-      if (parsed.mode === 'auto' || parsed.mode === 'tech' || parsed.mode === 'behavior') {
+      if (!initialMode && (parsed.mode === 'auto' || parsed.mode === 'tech' || parsed.mode === 'behavior')) {
         setMode(parsed.mode);
       }
     } catch {
       // ignore
     }
-  }, []);
+  }, [initialMode]);
 
   // Persist chat history
   useEffect(() => {
     if (isLoading) return;
     try {
-      localStorage.setItem('chengai_chat_v1', JSON.stringify({ messages, sources, mode }));
+      localStorage.setItem('chengai_chat_v1', JSON.stringify({ messages, mode }));
     } catch {
       // ignore
     }
-  }, [messages, sources, mode, isLoading]);
+  }, [messages, mode, isLoading]);
 
   useEffect(() => {
     if (!autoScrollRef.current) return;
@@ -170,7 +184,6 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
           try {
             const parsed = JSON.parse(data);
             if (parsed.type === 'sources' && Array.isArray(parsed.sources)) {
-              setSources(parsed.sources);
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === assistantId
@@ -222,7 +235,6 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
   const clearChat = () => {
     if (isLoading) return;
     setMessages([]);
-    setSources([]);
     setInput('');
     try {
       localStorage.removeItem('chengai_chat_v1');
@@ -241,10 +253,10 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
           </div>
           <div className="leading-tight">
             <div className="text-sm font-semibold text-zinc-900 dark:text-white">
-              Tianle&apos;s AI
+              Charlie&apos;s AI
             </div>
             <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-              Evidence-first • RAG-enabled • {mode === 'auto' ? 'Auto' : mode}
+              Evidence-first • RAG-powered • {mode === 'auto' ? 'Auto' : mode}
             </div>
           </div>
           <select
@@ -278,15 +290,15 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
       >
         {messages.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/15 to-purple-600/15 text-zinc-700 dark:text-zinc-200">
-              <Sparkles className="h-6 w-6" />
-            </div>
-            <h3 className="mt-4 text-lg font-semibold text-zinc-900 dark:text-white">
-              Ask anything about Tianle
-            </h3>
-            <p className="mt-2 max-w-md text-sm text-zinc-600 dark:text-zinc-400">
-              I&apos;ll answer with citations from projects, articles, stories, and resume.
-            </p>
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/15 to-purple-600/15 text-zinc-700 dark:text-zinc-200">
+            <Sparkles className="h-6 w-6" />
+          </div>
+          <h3 className="mt-4 text-lg font-semibold text-zinc-900 dark:text-white">
+              Ask anything about Charlie
+          </h3>
+          <p className="mt-2 max-w-md text-sm text-zinc-600 dark:text-zinc-400">
+              I&apos;ll answer based on my projects, resume, and writing — with sources shown below each answer.
+          </p>
 
             <div className="mt-6 flex max-w-xl flex-wrap justify-center gap-2">
               {suggestedPrompts.map((p) => (
@@ -339,6 +351,45 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
                       <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-zinc-400 [animation-delay:300ms] dark:bg-zinc-500" />
                     </div>
                   )}
+
+                  {message.sources && message.sources.length > 0 && (() => {
+                    const uniqueSources = dedupeSources(message.sources);
+                    return (
+                      <div className="not-prose mt-3 border-t border-zinc-200/70 pt-3 dark:border-zinc-800/70">
+                        <div className="mb-2 flex items-center gap-2 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                          <BookOpen className="h-3 w-3" />
+                          <span>Sources</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {uniqueSources.slice(0, 6).map((s) => {
+                            const href = getSourceHref(s);
+                            const commonClass =
+                              'inline-flex items-center rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 shadow-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-200 dark:hover:bg-zinc-950';
+
+                            return href ? (
+                              <Link
+                                key={s.chunk_id}
+                                href={href}
+                                className={commonClass}
+                                title={s.content_preview}
+                              >
+                                {s.source_title}
+                              </Link>
+                            ) : (
+                              <span key={s.chunk_id} className={commonClass} title={s.content_preview}>
+                                {s.source_title}
+                              </span>
+                            );
+                          })}
+                          {uniqueSources.length > 6 && (
+                            <span className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-400">
+                              +{uniqueSources.length - 6} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               ) : (
                 <p className="text-sm">{message.content}</p>
@@ -351,41 +402,6 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
             )}
           </div>
         ))}
-      </div>
-      {/* Sources */}
-      <div className="min-h-[76px] border-t border-zinc-200/70 bg-zinc-50/60 px-4 py-3 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/40">
-        <div className="mb-2 flex items-center gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-          <BookOpen className="h-3 w-3" />
-          <span>Sources used in the last answer</span>
-        </div>
-        {sources.length > 0 ? (
-          <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-            {sources.slice(0, 8).map((s) => {
-              const href = getSourceHref(s);
-              const commonClass =
-                'inline-flex shrink-0 items-center rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 shadow-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-200 dark:hover:bg-zinc-950';
-
-              return href ? (
-                <Link
-                  key={s.chunk_id}
-                  href={href}
-                  className={commonClass}
-                  title={s.content_preview}
-                >
-                  {s.source_title}
-                </Link>
-              ) : (
-                <span key={s.chunk_id} className={commonClass} title={s.content_preview}>
-                  {s.source_title}
-                </span>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="text-xs text-zinc-500 dark:text-zinc-400">
-            Sources will appear here after the next answer.
-          </div>
-        )}
       </div>
       {/* Input */}
       <div className="border-t border-zinc-200/70 bg-white/60 p-4 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/40">
