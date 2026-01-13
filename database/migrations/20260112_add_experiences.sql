@@ -24,6 +24,8 @@ create index if not exists idx_experiences_owner_dates on public.experiences(own
 
 alter table public.experiences enable row level security;
 
+drop policy if exists "Public read experiences" on public.experiences;
+
 create policy "Public read experiences" on public.experiences for select
   using (status = 'published');
 
