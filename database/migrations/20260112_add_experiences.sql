@@ -31,22 +31,19 @@ create policy "Public read experiences" on public.experiences for select
 -- Supabase auto-generates the constraint name, so we drop it dynamically.
 do $$
 declare
-  constraint_name text;
+  r record;
 begin
-  select conname
-    into constraint_name
-  from pg_constraint
-  where conrelid = 'public.chunks'::regclass
-    and contype = 'c'
-    and pg_get_constraintdef(oid) ilike '%source_type%'
-    and pg_get_constraintdef(oid) ilike '%in (%';
-
-  if constraint_name is not null then
-    execute format('alter table public.chunks drop constraint %I', constraint_name);
-  end if;
+  for r in
+    select conname
+    from pg_constraint
+    where conrelid = 'public.chunks'::regclass
+      and contype = 'c'
+      and pg_get_constraintdef(oid) ilike '%source_type%'
+  loop
+    execute format('alter table public.chunks drop constraint if exists %I', r.conname);
+  end loop;
 end $$;
 
 alter table public.chunks
   add constraint chunks_source_type_check
   check (source_type in ('project', 'article', 'resume', 'story', 'skill', 'experience'));
-
