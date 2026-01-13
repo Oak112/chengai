@@ -16,16 +16,14 @@ export default function ChatPage({
     rawMode === 'auto' || rawMode === 'tech' || rawMode === 'behavior' ? rawMode : undefined;
 
   return (
-    <div className="relative">
+    <div className="relative flex h-full min-h-0 flex-col">
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute -top-24 left-1/2 h-96 w-[42rem] -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 blur-3xl" />
         <div className="absolute -bottom-24 left-1/2 h-96 w-[42rem] -translate-x-1/2 rounded-full bg-gradient-to-r from-zinc-500/10 via-blue-500/10 to-purple-500/10 blur-3xl" />
       </div>
 
-      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="h-[calc(100vh-10rem)]">
-          <ChatInterface initialMessage={initialMessage} initialMode={initialMode} />
-        </div>
+      <div className="mx-auto flex h-full w-full max-w-5xl flex-1 min-h-0 flex-col px-0 py-0 sm:px-6 sm:py-8 lg:px-8">
+        <ChatInterface initialMessage={initialMessage} initialMode={initialMode} />
       </div>
     </div>
   );

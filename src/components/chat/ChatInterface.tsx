@@ -244,49 +244,54 @@ export default function ChatInterface({ initialMessage, initialMode }: ChatInter
   };
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-white/70 shadow-xl backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/60">
+    <div className="relative flex h-full flex-col overflow-hidden rounded-none border-0 border-zinc-200 bg-white/70 shadow-none backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/60 sm:rounded-3xl sm:border sm:shadow-xl">
       {/* Top Bar */}
-      <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-zinc-200/70 bg-white/60 px-4 py-3 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/40">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-sm">
-            <Bot className="h-4 w-4 text-white" />
-          </div>
-          <div className="leading-tight">
-            <div className="text-sm font-semibold text-zinc-900 dark:text-white">
-              Charlie&apos;s AI
+      <div className="sticky top-0 z-10 border-b border-zinc-200/70 bg-white/60 px-3 py-2 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/40 sm:px-4 sm:py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-sm">
+              <Bot className="h-4 w-4 text-white" />
             </div>
-            <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-              Evidence-first • RAG-powered • {mode === 'auto' ? 'Auto' : mode}
+            <div className="min-w-0 leading-tight">
+              <div className="truncate text-sm font-semibold text-zinc-900 dark:text-white">
+                Charlie&apos;s AI
+              </div>
+              <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                Evidence-first • RAG-powered • {mode === 'auto' ? 'Auto' : mode}
+              </div>
             </div>
           </div>
-          <select
-            value={mode}
-            onChange={(e) => setMode(e.target.value as typeof mode)}
-            className="ml-2 rounded-xl border border-zinc-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:bg-white dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-200 dark:hover:bg-zinc-950"
-            disabled={isLoading}
-            aria-label="Mode"
-          >
-            <option value="auto">Auto</option>
-            <option value="tech">Tech deep dive</option>
-            <option value="behavior">Behavioral (STAR)</option>
-          </select>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={clearChat}
-            disabled={isLoading || messages.length === 0}
-            className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-zinc-700 shadow-sm hover:bg-white disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-200 dark:hover:bg-zinc-950"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            New chat
-          </button>
+
+          <div className="flex items-center gap-2">
+            <select
+              value={mode}
+              onChange={(e) => setMode(e.target.value as typeof mode)}
+              className="max-w-[9.5rem] rounded-xl border border-zinc-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:bg-white dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-200 dark:hover:bg-zinc-950 sm:max-w-none"
+              disabled={isLoading}
+              aria-label="Mode"
+            >
+              <option value="auto">Auto</option>
+              <option value="tech">Tech deep dive</option>
+              <option value="behavior">Behavioral (STAR)</option>
+            </select>
+
+            <button
+              onClick={clearChat}
+              disabled={isLoading || messages.length === 0}
+              className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-zinc-700 shadow-sm hover:bg-white disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-200 dark:hover:bg-zinc-950"
+              aria-label="New chat"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">New chat</span>
+            </button>
+          </div>
         </div>
       </div>
       {/* Messages */}
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4"
+        className="flex-1 min-h-0 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-6"
       >
         {messages.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center text-center">
@@ -404,7 +409,7 @@ export default function ChatInterface({ initialMessage, initialMode }: ChatInter
         ))}
       </div>
       {/* Input */}
-      <div className="border-t border-zinc-200/70 bg-white/60 p-4 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/40">
+      <div className="border-t border-zinc-200/70 bg-white/60 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/40 sm:p-4">
         <div className="flex gap-2">
           <textarea
             value={input}
