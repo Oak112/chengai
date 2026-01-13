@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Link from 'next/link';
 import type { ChatMessage, ChunkReference } from '@/types';
+import { trackEvent } from '@/lib/analytics';
 
 interface ChatInterfaceProps {
   initialMessage?: string;
@@ -36,18 +37,6 @@ function getSourceHref(source: ChunkReference): string | null {
   if (type === 'story') return '/stories';
   if (type === 'skill') return '/skills';
   return null;
-}
-
-function trackEvent(type: string, meta?: Record<string, unknown>) {
-  try {
-    void fetch('/api/track/event', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, meta: meta || {} }),
-    });
-  } catch {
-    // ignore
-  }
 }
 
 export default function ChatInterface({ initialMessage, initialMode }: ChatInterfaceProps) {
@@ -130,7 +119,7 @@ export default function ChatInterface({ initialMessage, initialMode }: ChatInter
     if (messages.length === 0) {
       trackEvent('chat_started', { mode });
     }
-    trackEvent('chat_message_sent', { mode });
+    trackEvent('chat_message_sent', { mode, message_chars: userMessage.content.length });
 
     const assistantMessage: ChatMessage = {
       id: assistantId,
@@ -234,6 +223,7 @@ export default function ChatInterface({ initialMessage, initialMode }: ChatInter
 
   const clearChat = () => {
     if (isLoading) return;
+    trackEvent('chat_new_clicked', { mode, had_messages: messages.length > 0 });
     setMessages([]);
     setInput('');
     try {
@@ -265,11 +255,15 @@ export default function ChatInterface({ initialMessage, initialMode }: ChatInter
           <div className="flex items-center gap-2">
             <select
               value={mode}
-              onChange={(e) => setMode(e.target.value as typeof mode)}
-              className="max-w-[9.5rem] rounded-xl border border-zinc-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:bg-white dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-200 dark:hover:bg-zinc-950 sm:max-w-none"
-              disabled={isLoading}
-              aria-label="Mode"
-            >
+            onChange={(e) => {
+              const nextMode = e.target.value as typeof mode;
+              trackEvent('chat_mode_changed', { from: mode, to: nextMode });
+              setMode(nextMode);
+            }}
+            className="max-w-[9.5rem] rounded-xl border border-zinc-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:bg-white dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-200 dark:hover:bg-zinc-950 sm:max-w-none"
+            disabled={isLoading}
+            aria-label="Mode"
+          >
               <option value="auto">Auto</option>
               <option value="tech">Tech deep dive</option>
               <option value="behavior">Behavioral (STAR)</option>
@@ -306,11 +300,14 @@ export default function ChatInterface({ initialMessage, initialMode }: ChatInter
           </p>
 
             <div className="mt-6 flex max-w-xl flex-wrap justify-center gap-2">
-              {suggestedPrompts.map((p) => (
+              {suggestedPrompts.map((p, idx) => (
                 <button
                   key={p}
                   type="button"
-                  onClick={() => setInput(p)}
+                  onClick={() => {
+                    trackEvent('chat_suggested_prompt_clicked', { idx, mode });
+                    setInput(p);
+                  }}
                   className="rounded-full border border-zinc-200 bg-white/70 px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:bg-white dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-200 dark:hover:bg-zinc-950"
                 >
                   {p}

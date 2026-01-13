@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { MessageSquare, Briefcase, ArrowRight, Code, FileText, Download, Building2 } from "lucide-react";
 import ResumeDownloadLink from "@/components/ResumeDownloadLink";
+import TrackedLink from "@/components/TrackedLink";
 
 export default function Home() {
   return (
@@ -28,21 +28,25 @@ export default function Home() {
 
             {/* CTA Buttons */}
             <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:justify-center">
-              <Link
+              <TrackedLink
                 href="/chat"
+                event="cta_click"
+                meta={{ cta: "chat_with_ai", page: "home" }}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-8 py-4 text-lg font-medium text-white shadow-lg transition-all hover:bg-blue-700 hover:shadow-xl"
               >
                 <MessageSquare className="h-5 w-5" />
                 Chat with My AI
                 <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link
+              </TrackedLink>
+              <TrackedLink
                 href="/jd-match"
+                event="cta_click"
+                meta={{ cta: "jd_match", page: "home" }}
                 className="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-zinc-200 bg-white px-8 py-4 text-lg font-medium text-zinc-700 transition-colors hover:border-blue-600 hover:text-blue-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-blue-500 dark:hover:text-blue-400"
               >
                 <Briefcase className="h-5 w-5" />
                 Match Your JD
-              </Link>
+              </TrackedLink>
             </div>
 
             {/* Resume Download */}
@@ -57,16 +61,18 @@ export default function Home() {
 
             {/* Playful shortcuts */}
             <div className="mt-8 flex flex-wrap justify-center gap-2">
-              <Link
+              <TrackedLink
                 href={{
                   pathname: '/chat',
                   query: { q: 'Give me a 30-second intro, then list your strongest projects.' },
                 }}
+                event="shortcut_click"
+                meta={{ shortcut: 'intro', page: 'home' }}
                 className="rounded-full border border-zinc-200 bg-white/70 px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:bg-white dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-200 dark:hover:bg-zinc-950"
               >
                 30-sec intro
-              </Link>
-              <Link
+              </TrackedLink>
+              <TrackedLink
                 href={{
                   pathname: '/chat',
                   query: {
@@ -74,11 +80,13 @@ export default function Home() {
                     mode: 'tech',
                   },
                 }}
+                event="shortcut_click"
+                meta={{ shortcut: 'mock_interview_tech', page: 'home' }}
                 className="rounded-full border border-zinc-200 bg-white/70 px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:bg-white dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-200 dark:hover:bg-zinc-950"
               >
                 Mock interview (tech)
-              </Link>
-              <Link
+              </TrackedLink>
+              <TrackedLink
                 href={{
                   pathname: '/chat',
                   query: {
@@ -86,21 +94,25 @@ export default function Home() {
                     mode: 'behavior',
                   },
                 }}
+                event="shortcut_click"
+                meta={{ shortcut: 'mock_interview_star', page: 'home' }}
                 className="rounded-full border border-zinc-200 bg-white/70 px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:bg-white dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-200 dark:hover:bg-zinc-950"
               >
                 Mock interview (STAR)
-              </Link>
-              <Link
+              </TrackedLink>
+              <TrackedLink
                 href={{
                   pathname: '/chat',
                   query: {
                     q: 'Write a concise referral message + cover letter. Ask me to paste the JD if needed.',
                   },
                 }}
+                event="shortcut_click"
+                meta={{ shortcut: 'referral_cover_letter', page: 'home' }}
                 className="rounded-full border border-zinc-200 bg-white/70 px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:bg-white dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-200 dark:hover:bg-zinc-950"
               >
                 Referral + cover letter
-              </Link>
+              </TrackedLink>
             </div>
           </div>
         </div>
@@ -121,8 +133,10 @@ export default function Home() {
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {/* Experience Card */}
-            <Link
+            <TrackedLink
               href="/experience"
+              event="home_card_click"
+              meta={{ card: "experience" }}
               className="group rounded-2xl border border-zinc-200 bg-white p-6 transition-all hover:border-teal-500 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
             >
               <Building2 className="h-8 w-8 text-teal-600 mb-4" />
@@ -135,11 +149,13 @@ export default function Home() {
               <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-teal-600">
                 View Experience <ArrowRight className="h-4 w-4" />
               </span>
-            </Link>
+            </TrackedLink>
 
             {/* Projects Card */}
-            <Link
+            <TrackedLink
               href="/projects"
+              event="home_card_click"
+              meta={{ card: "projects" }}
               className="group rounded-2xl border border-zinc-200 bg-white p-6 transition-all hover:border-blue-500 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
             >
               <Code className="h-8 w-8 text-blue-600 mb-4" />
@@ -152,11 +168,13 @@ export default function Home() {
               <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-blue-600">
                 View Projects <ArrowRight className="h-4 w-4" />
               </span>
-            </Link>
+            </TrackedLink>
 
             {/* Skills Card */}
-            <Link
+            <TrackedLink
               href="/skills"
+              event="home_card_click"
+              meta={{ card: "skills" }}
               className="group rounded-2xl border border-zinc-200 bg-white p-6 transition-all hover:border-purple-500 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
             >
               <Briefcase className="h-8 w-8 text-purple-600 mb-4" />
@@ -169,11 +187,13 @@ export default function Home() {
               <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-purple-600">
                 View Skills <ArrowRight className="h-4 w-4" />
               </span>
-            </Link>
+            </TrackedLink>
 
             {/* Articles Card */}
-            <Link
+            <TrackedLink
               href="/articles"
+              event="home_card_click"
+              meta={{ card: "articles" }}
               className="group rounded-2xl border border-zinc-200 bg-white p-6 transition-all hover:border-green-500 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
             >
               <FileText className="h-8 w-8 text-green-600 mb-4" />
@@ -186,7 +206,7 @@ export default function Home() {
               <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-green-600">
                 Read Articles <ArrowRight className="h-4 w-4" />
               </span>
-            </Link>
+            </TrackedLink>
           </div>
         </div>
       </section>

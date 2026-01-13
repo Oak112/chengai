@@ -2,18 +2,7 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-
-function trackEvent(type: string, meta?: Record<string, unknown>) {
-  try {
-    void fetch('/api/track/event', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, meta: meta || {} }),
-    });
-  } catch {
-    // ignore
-  }
-}
+import { trackEvent } from '@/lib/analytics';
 
 export default function ResumeDownloadLink({
   className,

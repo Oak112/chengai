@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Github, Linkedin, Mail } from 'lucide-react';
+import { trackEvent } from '@/lib/analytics';
 
 export default function Footer() {
   return (
@@ -19,6 +20,7 @@ export default function Footer() {
               href="https://github.com/Oak112"
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => trackEvent('outbound_click', { destination: 'github' })}
               className="text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
             >
               <Github className="h-5 w-5" />
@@ -28,6 +30,7 @@ export default function Footer() {
               href="https://www.linkedin.com/in/charlie-tianle-cheng-6147a4325"
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => trackEvent('outbound_click', { destination: 'linkedin' })}
               className="text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
             >
               <Linkedin className="h-5 w-5" />
@@ -35,6 +38,7 @@ export default function Footer() {
             </Link>
             <Link
               href="mailto:charliecheng112@gmail.com"
+              onClick={() => trackEvent('outbound_click', { destination: 'email' })}
               className="text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
             >
               <Mail className="h-5 w-5" />

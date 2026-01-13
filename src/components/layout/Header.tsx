@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Menu, X, MessageSquare, Briefcase, Code, FileText, User, ScrollText, Building2 } from 'lucide-react';
+import { trackEvent } from '@/lib/analytics';
 
 const navItems = [
   { href: '/', label: 'Home', icon: User },
@@ -44,6 +45,7 @@ export default function Header() {
               key={item.href}
               href={item.href}
               aria-current={isActive(item.href) ? 'page' : undefined}
+              onClick={() => trackEvent('nav_click', { href: item.href, label: item.label })}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-all ${
                 isActive(item.href)
                   ? 'bg-zinc-900 text-white shadow-sm dark:bg-white dark:text-zinc-900'
@@ -73,12 +75,15 @@ export default function Header() {
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setIsMenuOpen(false)}
+                onClick={() => {
+                  trackEvent('nav_click', { href: item.href, label: item.label, surface: 'mobile_menu' });
+                  setIsMenuOpen(false);
+                }}
                 aria-current={isActive(item.href) ? 'page' : undefined}
                 className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
                   isActive(item.href)
                     ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900'
-                    : 'text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-white'
+                  : 'text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-white'
                 }`}
               >
                 <item.icon className="h-4 w-4" />

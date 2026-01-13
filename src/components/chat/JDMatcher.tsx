@@ -4,18 +4,7 @@ import { useState } from 'react';
 import { Loader2, CheckCircle, XCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import type { JDMatchResult } from '@/types';
-
-function trackEvent(type: string, meta?: Record<string, unknown>) {
-  try {
-    void fetch('/api/track/event', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, meta: meta || {} }),
-    });
-  } catch {
-    // ignore
-  }
-}
+import { trackEvent } from '@/lib/analytics';
 
 export default function JDMatcher() {
   const [jd, setJd] = useState('');
@@ -31,7 +20,7 @@ export default function JDMatcher() {
     setResult(null);
 
     try {
-      trackEvent('jd_match_run');
+      trackEvent('jd_match_run', { jd_chars: jd.length });
       const response = await fetch('/api/jd-match', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -201,12 +190,14 @@ export default function JDMatcher() {
           <div className="flex gap-4">
             <Link
               href="/chat"
+              onClick={() => trackEvent('jd_match_cta_click', { cta: 'chat' })}
               className="flex-1 rounded-xl bg-blue-600 py-3 text-center text-sm font-medium text-white hover:bg-blue-700"
             >
               Ask AI More Questions
             </Link>
             <Link
               href="/projects"
+              onClick={() => trackEvent('jd_match_cta_click', { cta: 'projects' })}
               className="flex-1 rounded-xl border border-zinc-200 py-3 text-center text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
               View All Projects
