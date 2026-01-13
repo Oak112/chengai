@@ -4,6 +4,7 @@ import { GA_MEASUREMENT_ID } from '@/lib/ga';
 import GoogleAnalyticsPageView from '@/components/analytics/GoogleAnalyticsPageView';
 
 export default function GoogleAnalytics() {
+  if (process.env.NODE_ENV !== 'production') return null;
   if (!GA_MEASUREMENT_ID) return null;
 
   return (
