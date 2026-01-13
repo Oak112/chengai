@@ -124,6 +124,7 @@ export interface JDMatchResult {
   suggested_stories?: Story[];
   gaps: string[];
   summary: string;
+  report_markdown?: string;
   parsed_jd?: unknown;
   sources?: ChunkReference[];
 }

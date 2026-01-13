@@ -44,7 +44,6 @@ export default function ChatInterface({ initialMessage, initialMode }: ChatInter
   const [input, setInput] = useState(initialMessage || '');
   const [isLoading, setIsLoading] = useState(false);
   const [mode, setMode] = useState<'auto' | 'tech' | 'behavior'>(initialMode || 'auto');
-  const [activeAssistantId, setActiveAssistantId] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
 
@@ -115,7 +114,6 @@ export default function ChatInterface({ initialMessage, initialMode }: ChatInter
     };
 
     const assistantId = (Date.now() + 1).toString();
-    setActiveAssistantId(assistantId);
     if (messages.length === 0) {
       trackEvent('chat_started', { mode });
     }
@@ -210,7 +208,6 @@ export default function ChatInterface({ initialMessage, initialMode }: ChatInter
       });
     } finally {
       setIsLoading(false);
-      setActiveAssistantId(null);
     }
   };
 
@@ -337,15 +334,9 @@ export default function ChatInterface({ initialMessage, initialMode }: ChatInter
               {message.role === 'assistant' ? (
                 <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none">
                   {message.content ? (
-                    isLoading && activeAssistantId === message.id ? (
-                      <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                        {message.content}
-                      </div>
-                    ) : (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {message.content}
-                      </ReactMarkdown>
-                    )
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {message.content}
+                    </ReactMarkdown>
                   ) : (
                     <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
                       <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-zinc-400 dark:bg-zinc-500" />

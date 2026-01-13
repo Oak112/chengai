@@ -5,6 +5,35 @@ import { Loader2, CheckCircle, XCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import type { JDMatchResult } from '@/types';
 import { trackEvent } from '@/lib/analytics';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import type { ChunkReference } from '@/types';
+
+function dedupeSources(sources: ChunkReference[]): ChunkReference[] {
+  const out: ChunkReference[] = [];
+  const seen = new Set<string>();
+
+  for (const s of sources || []) {
+    const slugOrTitle = s.source_slug || s.source_title || s.source_id || '';
+    const key = `${s.source_type || 'unknown'}:${slugOrTitle}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(s);
+  }
+
+  return out;
+}
+
+function getSourceHref(source: ChunkReference): string | null {
+  const type = source.source_type;
+  if (type === 'article' && source.source_slug) return `/articles/${source.source_slug}`;
+  if (type === 'project' && source.source_slug) return `/projects/${source.source_slug}`;
+  if (type === 'experience') return '/experience';
+  if (type === 'resume') return '/api/resume';
+  if (type === 'story') return '/stories';
+  if (type === 'skill') return '/skills';
+  return null;
+}
 
 export default function JDMatcher() {
   const [jd, setJd] = useState('');
@@ -90,8 +119,55 @@ export default function JDMatcher() {
           <div className="rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 p-6 text-white">
             <div className="text-sm opacity-80">Match Score</div>
             <div className="text-5xl font-bold">{result.match_score}%</div>
-            <p className="mt-2 text-sm opacity-90">{result.summary}</p>
+            <p className="mt-2 text-sm opacity-90 whitespace-pre-line">{result.summary}</p>
           </div>
+
+          {/* Match Report */}
+          {result.report_markdown && (
+            <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+              <h3 className="font-medium text-zinc-900 dark:text-white mb-3">
+                Evidence-backed Match Report
+              </h3>
+              <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {result.report_markdown}
+                </ReactMarkdown>
+              </div>
+            </div>
+          )}
+
+          {/* Sources */}
+          {result.sources && result.sources.length > 0 && (
+            <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+              <h3 className="font-medium text-zinc-900 dark:text-white mb-3">
+                Sources
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {dedupeSources(result.sources).slice(0, 12).map((s) => {
+                  const href = getSourceHref(s);
+                  const commonClass =
+                    'inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-700 shadow-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-200 dark:hover:bg-zinc-950';
+
+                  return href ? (
+                    <Link
+                      key={s.chunk_id}
+                      href={href}
+                      className={commonClass}
+                      title={s.content_preview}
+                      target={href.startsWith('/api/') ? '_blank' : undefined}
+                      rel={href.startsWith('/api/') ? 'noopener noreferrer' : undefined}
+                    >
+                      {s.source_title}
+                    </Link>
+                  ) : (
+                    <span key={s.chunk_id} className={commonClass} title={s.content_preview}>
+                      {s.source_title}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Matched Skills */}
           <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">

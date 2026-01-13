@@ -193,14 +193,20 @@ function stripTrailingEvidenceSection(text: string): string {
 
 export async function generateText(
   systemPrompt: string,
-  userMessage: string
+  userMessage: string,
+  options: { model?: string; temperature?: number } = {}
 ): Promise<string> {
+  const model = options.model || process.env.AI_TEXT_MODEL || 'gemini-2.5-pro';
+  const temperature =
+    model.startsWith('gpt-5') ? 1.0 : options.temperature;
+
   const response = await aiBuilders.chat.completions.create({
-    model: 'gemini-2.5-pro',
+    model,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userMessage },
     ],
+    ...(typeof temperature === 'number' ? { temperature } : {}),
   });
   return response.choices[0]?.message?.content || '';
 }
@@ -213,6 +219,11 @@ export const JD_PARSE_PROMPT = `You are a professional job description (JD) anal
 3. Responsibilities
 4. Team / project context
 5. Soft-skill requirements
+
+Rules:
+- Return ONLY valid JSON. No Markdown, no commentary, no code fences.
+- Keep required_skills / preferred_skills strictly to concrete, checkable items (languages, frameworks, databases, cloud, dev tools). Do NOT include generic phrases like "strong fundamentals", "communication skills", "problem solving", etc.
+- Normalize common abbreviations (e.g., JS -> JavaScript, TS -> TypeScript, Postgres -> PostgreSQL, k8s -> Kubernetes).
 
 Return JSON in the following schema:
 {
