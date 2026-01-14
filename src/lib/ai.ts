@@ -15,9 +15,48 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || '',
 });
 
+const EMBEDDING_MODEL = process.env.AI_EMBEDDING_MODEL || 'text-embedding-3-small';
+
+function hasAiBuilderToken(): boolean {
+  return Boolean(
+    process.env.AI_BUILDER_TOKEN || process.env.BUILDERSPACE || process.env.builderspace
+  );
+}
+
+function hasOpenAiKey(): boolean {
+  return Boolean(process.env.OPENAI_API_KEY);
+}
+
+function getEmbeddingsClient(): OpenAI {
+  // Prefer direct OpenAI when available; otherwise use AI Builders Space (OpenAI-compatible) via AI_BUILDER_TOKEN.
+  if (process.env.OPENAI_API_KEY) return openai;
+  if (hasAiBuilderToken()) return aiBuilders;
+  throw new Error('Missing embeddings API key: set OPENAI_API_KEY or AI_BUILDER_TOKEN.');
+}
+
+function isRetryableUpstreamError(error: unknown): boolean {
+  const anyErr = error as { status?: number; message?: string } | null;
+  const status = typeof anyErr?.status === 'number' ? anyErr.status : null;
+  if (status && [502, 503, 504].includes(status)) return true;
+  const msg = String(anyErr?.message || error || '');
+  return /502|503|504|bad gateway|gateway timeout|service unavailable/i.test(msg);
+}
+
+function getFallbackChatModel(): string {
+  return process.env.AI_CHAT_MODEL_FALLBACK || 'gpt-5';
+}
+
+function getFallbackTextModel(temperature?: number): string {
+  if (process.env.AI_TEXT_MODEL_FALLBACK) return process.env.AI_TEXT_MODEL_FALLBACK;
+  // For deterministic/structured outputs, prefer a model that supports temperature 0.
+  if (temperature === 0) return 'gpt-4o-mini';
+  return 'gpt-5';
+}
+
 export async function generateEmbedding(text: string): Promise<number[]> {
-  const response = await openai.embeddings.create({
-    model: 'text-embedding-3-small',
+  const client = getEmbeddingsClient();
+  const response = await client.embeddings.create({
+    model: EMBEDDING_MODEL,
     input: text,
     dimensions: 1536,
   });
@@ -27,8 +66,9 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   if (!Array.isArray(texts) || texts.length === 0) return [];
 
-  const response = await openai.embeddings.create({
-    model: 'text-embedding-3-small',
+  const client = getEmbeddingsClient();
+  const response = await client.embeddings.create({
+    model: EMBEDDING_MODEL,
     input: texts,
     dimensions: 1536,
   });
@@ -142,26 +182,134 @@ export async function* streamChat(
 
       return;
     } catch (error) {
+      // AI Builders Space can be intermittently unavailable. Fall back to direct OpenAI if configured.
+      if (isRetryableUpstreamError(error) && hasOpenAiKey()) {
+        try {
+          const fallbackModel = getFallbackChatModel();
+          const stream = await openai.chat.completions.create({
+            model: fallbackModel,
+            messages,
+            stream: true,
+            ...(fallbackModel.startsWith('gpt-5') ? { temperature: 1.0 } : {}),
+          });
+
+          const lookbehind = 120;
+          let buffer = '';
+          let fullOutput = '';
+          let stoppedAtEvidence = false;
+
+          for await (const chunk of stream) {
+            const delta = chunk.choices?.[0]?.delta?.content || '';
+            if (!delta || stoppedAtEvidence) continue;
+
+            buffer += delta;
+
+            const evidenceIndex = findEvidenceStart(buffer);
+            if (evidenceIndex >= 0) {
+              const safe = buffer.slice(0, evidenceIndex);
+              if (safe) {
+                const cleaned = sanitizeStreamingChunk(safe);
+                if (cleaned) {
+                  fullOutput += cleaned;
+                  yield { type: 'append', content: cleaned };
+                }
+              }
+              buffer = '';
+              stoppedAtEvidence = true;
+              continue;
+            }
+
+            if (buffer.length > lookbehind) {
+              const emit = buffer.slice(0, buffer.length - lookbehind);
+              buffer = buffer.slice(buffer.length - lookbehind);
+              if (emit) {
+                const cleaned = sanitizeStreamingChunk(emit);
+                if (cleaned) {
+                  fullOutput += cleaned;
+                  yield { type: 'append', content: cleaned };
+                }
+              }
+            }
+          }
+
+          if (!stoppedAtEvidence) {
+            const remainder = buffer.trimEnd();
+            if (remainder) {
+              const cleaned = sanitizeStreamingChunk(remainder);
+              if (cleaned) {
+                fullOutput += cleaned;
+                yield { type: 'append', content: cleaned };
+              }
+            }
+          }
+
+          if (evidenceMarkdown?.trim()) {
+            const cleanedEvidence = `\n\n${evidenceMarkdown.trim()}`;
+            fullOutput += cleanedEvidence;
+            yield { type: 'append', content: cleanedEvidence };
+          }
+
+          const finalized = finalizeChatMarkdown(fullOutput);
+          if (finalized && finalized !== fullOutput) {
+            yield { type: 'replace', content: finalized };
+          }
+
+          return;
+        } catch (fallbackError) {
+          console.warn('Streaming fallback (OpenAI) failed, falling back to non-streaming:', fallbackError);
+        }
+      }
+
       console.warn('Streaming failed, falling back to non-streaming:', error);
 
-      const response = await aiBuilders.chat.completions.create({
-        model,
-        messages,
-      });
+      let responseContent = '';
+      try {
+        const response = await aiBuilders.chat.completions.create({
+          model,
+          messages,
+        });
+        responseContent = response.choices[0]?.message?.content || '';
+      } catch (nonStreamingError) {
+        if (isRetryableUpstreamError(nonStreamingError) && hasOpenAiKey()) {
+          const fallbackModel = getFallbackChatModel();
+          const response = await openai.chat.completions.create({
+            model: fallbackModel,
+            messages,
+            ...(fallbackModel.startsWith('gpt-5') ? { temperature: 1.0 } : {}),
+          });
+          responseContent = response.choices[0]?.message?.content || '';
+        } else {
+          throw nonStreamingError;
+        }
+      }
 
-      const content = response.choices[0]?.message?.content || '';
-      const finalized = finalizeChatMarkdown(content, evidenceMarkdown);
+      const finalized = finalizeChatMarkdown(responseContent, evidenceMarkdown);
       yield { type: 'replace', content: finalized };
       return;
     }
   }
 
-  const response = await aiBuilders.chat.completions.create({
-    model: model || 'gemini-2.5-pro',
-    messages,
-  });
+  let content = '';
+  try {
+    const response = await aiBuilders.chat.completions.create({
+      model: model || 'gemini-2.5-pro',
+      messages,
+    });
+    content = response.choices[0]?.message?.content || '';
+  } catch (error) {
+    if (isRetryableUpstreamError(error) && hasOpenAiKey()) {
+      const fallbackModel = getFallbackChatModel();
+      const response = await openai.chat.completions.create({
+        model: fallbackModel,
+        messages,
+        ...(fallbackModel.startsWith('gpt-5') ? { temperature: 1.0 } : {}),
+      });
+      content = response.choices[0]?.message?.content || '';
+    } else {
+      throw error;
+    }
+  }
 
-  const content = response.choices[0]?.message?.content || '';
   const finalized = finalizeChatMarkdown(content, evidenceMarkdown);
 
   const chunkSize = 80;
@@ -277,6 +425,7 @@ function normalizeCanonicalIdentity(text: string): string {
   // Canonical identity overrides legacy variants that might appear in sources.
   return text
     .replace(/\bTianle\s*\(Charlie\)\s*Cheng\b/gi, 'Charlie Cheng')
+    .replace(/\bCharlie\s*\(Tianle\)\s*Cheng\b/gi, 'Charlie Cheng')
     .replace(/\bTianle\s+Cheng\b/gi, 'Charlie Cheng')
     .replace(/\btianlecheng112@gmail\.com\b/gi, 'charliecheng112@gmail.com');
 }
@@ -291,6 +440,10 @@ function stripIdentityPlaceholders(text: string): string {
   return filtered.join('\n');
 }
 
+export function cleanAssistantMarkdown(raw: string): string {
+  return postProcessAssistantMarkdown(raw);
+}
+
 export async function generateText(
   systemPrompt: string,
   userMessage: string,
@@ -300,15 +453,32 @@ export async function generateText(
   const temperature =
     model.startsWith('gpt-5') ? 1.0 : options.temperature;
 
-  const response = await aiBuilders.chat.completions.create({
-    model,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userMessage },
-    ],
-    ...(typeof temperature === 'number' ? { temperature } : {}),
-  });
-  return response.choices[0]?.message?.content || '';
+  const messages: { role: 'system' | 'user'; content: string }[] = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userMessage },
+  ];
+
+  try {
+    const response = await aiBuilders.chat.completions.create({
+      model,
+      messages,
+      ...(typeof temperature === 'number' ? { temperature } : {}),
+    });
+    return response.choices[0]?.message?.content || '';
+  } catch (error) {
+    if (!isRetryableUpstreamError(error) || !hasOpenAiKey()) throw error;
+
+    const fallbackModel = getFallbackTextModel(options.temperature);
+    const fallbackTemperature =
+      fallbackModel.startsWith('gpt-5') ? 1.0 : options.temperature;
+
+    const response = await openai.chat.completions.create({
+      model: fallbackModel,
+      messages,
+      ...(typeof fallbackTemperature === 'number' ? { temperature: fallbackTemperature } : {}),
+    });
+    return response.choices[0]?.message?.content || '';
+  }
 }
 
 // JD parsing prompt

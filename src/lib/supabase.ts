@@ -1,10 +1,21 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+// Public defaults (safe to ship): Supabase URL + anon key are client-exposed by design.
+// These keep the deployed site working even if the hosting platform doesn't inject env vars.
+// Override in production via SUPABASE_URL/SUPABASE_ANON_KEY (preferred) or NEXT_PUBLIC_*.
+const FALLBACK_SUPABASE_URL = 'https://gugbewtihiuddprotnar.supabase.co';
+const FALLBACK_SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1Z2Jld3RpaGl1ZGRwcm90bmFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1MDg2NTYsImV4cCI6MjA4MzA4NDY1Nn0.wLahnTkh_l6PKhpL3fOFkxmU3sBdv4ki7rV4qrYkBzE';
+
 // NOTE: In production deployments, prefer non-NEXT_PUBLIC env vars so values are read at runtime.
 // NEXT_PUBLIC_* may be inlined at build time by Next.js and is intended for browser exposure.
-const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+const supabaseUrl =
+  process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? FALLBACK_SUPABASE_URL ?? '';
 const supabaseAnonKey =
-  process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+  process.env.SUPABASE_ANON_KEY ??
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+  FALLBACK_SUPABASE_ANON_KEY ??
+  '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 
 // Client-side Supabase client (anon key)

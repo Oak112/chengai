@@ -316,7 +316,12 @@ export default function ChatInterface({ initialMessage, initialMode, startFresh 
       {/* Top Bar */}
       <div className="sticky top-0 z-10 border-b border-zinc-200/70 bg-white/60 px-3 py-2 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/40 sm:px-4 sm:py-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-3">
+          <Link
+            href="/"
+            onClick={() => trackEvent('chat_home_clicked')}
+            className="flex min-w-0 items-center gap-3"
+            aria-label="Back to home"
+          >
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-sm">
               <Bot className="h-4 w-4 text-white" />
             </div>
@@ -328,7 +333,7 @@ export default function ChatInterface({ initialMessage, initialMode, startFresh 
                 Evidence-first • RAG-powered • {mode === 'auto' ? 'Auto' : mode}
               </div>
             </div>
-          </div>
+          </Link>
 
           <div className="flex items-center gap-2">
             <select
@@ -390,7 +395,7 @@ export default function ChatInterface({ initialMessage, initialMode, startFresh 
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 min-h-0 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-6"
+        className="flex-1 min-h-0 space-y-4 overflow-y-auto overscroll-contain p-3 sm:p-6"
       >
         {messages.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center text-center">
@@ -433,7 +438,7 @@ export default function ChatInterface({ initialMessage, initialMode, startFresh 
               </div>
             )}
             <div
-              className={`max-w-[82%] rounded-2xl px-4 py-3 shadow-sm ${
+              className={`max-w-[92%] sm:max-w-[82%] rounded-2xl px-4 py-3 shadow-sm ${
                 message.role === 'user'
                   ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white'
                   : 'border border-zinc-200/70 bg-white/80 text-zinc-900 dark:border-zinc-800/70 dark:bg-zinc-950/50 dark:text-white'

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateText, JD_PARSE_PROMPT } from '@/lib/ai';
+import { cleanAssistantMarkdown, generateText, JD_PARSE_PROMPT } from '@/lib/ai';
 import { retrieveContext } from '@/lib/rag';
 import { supabase, DEFAULT_OWNER_ID } from '@/lib/supabase';
 import type { Project, Skill, Story } from '@/types';
@@ -544,15 +544,17 @@ export async function POST(request: NextRequest) {
         { temperature: 0.2 }
       );
     }
-    report_markdown = report_markdown.trim();
+    report_markdown = cleanAssistantMarkdown(report_markdown).trim();
 
     // Generate a short summary line (used in the score card).
     const summaryPrompt = `Write a 1–2 sentence fit summary (English) for Charlie Cheng.\n\nRules:\n- Evidence-first, do not invent facts.\n- Include the match score: ${matchScore}%.\n- If gaps exist, be honest but not pessimistic.\n\nMatched skills: ${matchedSkills.slice(0, 8).map((s) => s.skill.name).join(', ') || 'n/a'}\nTop gaps: ${gaps.slice(0, 6).join(', ') || 'None'}\n\nSOURCES:\n${evidenceContext}\n`;
-    const summary = (
-      await generateText('You are a crisp career advisor. Respond in English.', summaryPrompt, {
-        temperature: 0.2,
-      })
-    ).trim();
+    const summary = cleanAssistantMarkdown(
+      (
+        await generateText('You are a crisp career advisor. Respond in English.', summaryPrompt, {
+          temperature: 0.2,
+        })
+      ).trim()
+    );
 
     return NextResponse.json({
       match_score: matchScore,

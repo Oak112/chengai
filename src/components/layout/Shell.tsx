@@ -7,6 +7,7 @@ import Footer from '@/components/layout/Footer';
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isChatRoute = pathname === '/chat' || pathname.startsWith('/chat/');
+  const hideGlobalHeader = isChatRoute;
 
   return (
     <div
@@ -16,7 +17,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           : 'flex min-h-[100dvh] flex-col'
       }
     >
-      <Header />
+      {!hideGlobalHeader && <Header />}
       <main className={isChatRoute ? 'flex-1 min-h-0 overflow-hidden' : 'flex-1 min-h-0'}>
         {children}
       </main>
