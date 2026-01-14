@@ -2,17 +2,34 @@ import { NextRequest } from 'next/server';
 import { retrieveContext } from '@/lib/rag';
 import { streamChat, CHAT_SYSTEM_PROMPT } from '@/lib/ai';
 import { supabaseAdmin, DEFAULT_OWNER_ID, isSupabaseConfigured } from '@/lib/supabase';
+import { extractSkillsFromText } from '@/lib/skills-import';
 import type { Article, ChunkReference, Experience, Project, Skill, Story } from '@/types';
 
 export const runtime = 'nodejs';
 
 const MAX_FALLBACK_SNIPPET_CHARS = 1800;
+const MAX_RETRIEVAL_QUERY_CHARS = 2600;
+
+type ChatIntent =
+  | 'internships'
+  | 'skills'
+  | 'projects'
+  | 'cover_letter'
+  | 'job_search'
+  | 'all_resources'
+  | 'general';
 
 function buildFallbackSnippet(text: string): string {
   const normalized = String(text || '').trim();
   if (!normalized) return '';
   if (normalized.length <= MAX_FALLBACK_SNIPPET_CHARS) return normalized;
   return `${normalized.slice(0, MAX_FALLBACK_SNIPPET_CHARS)}…`;
+}
+
+function clampText(value: string, maxChars: number): string {
+  const v = String(value || '').trim();
+  if (v.length <= maxChars) return v;
+  return `${v.slice(0, maxChars)}…`;
 }
 
 function detectSourceTypes(message: string): string[] | undefined {
@@ -33,6 +50,146 @@ function detectSourceTypes(message: string): string[] | undefined {
   return types.length > 0 ? types : undefined;
 }
 
+function detectChatIntent(message: string): ChatIntent {
+  const m = String(message || '').toLowerCase();
+  const has = (re: RegExp) => re.test(m);
+
+  if (has(/\bgo through\b|\ball resources\b|\beverything\b|\bread all\b|\buse all\b/)) return 'all_resources';
+  if (has(/\bintern(ship)?s?\b|\bintern\b|\bco-?op\b/)) return 'internships';
+  if (has(/\bcover letter\b|\breferral\b|\boutreach\b|\bapplication\b|\bapply\b/)) return 'cover_letter';
+  if (has(/\bjob\b|\bjd\b|\bmatch\b|\brole\b|\brecruiter\b|\bhiring\b/)) return 'job_search';
+  if (has(/\bproject(s)?\b|\bportfolio\b|\bcase study\b/)) return 'projects';
+  if (has(/\bskill(s)?\b|\btech stack\b|\bproficien/)) return 'skills';
+
+  return 'general';
+}
+
+function buildRetrievalQuery(args: {
+  message: string;
+  conversationHistory?: Array<{ role: string; content: string }> | null;
+  sessionContextText?: string;
+}): string {
+  const history = Array.isArray(args.conversationHistory)
+    ? args.conversationHistory
+        .filter((m) => m && m.role === 'user' && typeof m.content === 'string')
+        .slice(-2)
+        .map((m) => m.content.trim())
+        .filter(Boolean)
+        .join('\n')
+    : '';
+
+  const parts: string[] = [];
+  parts.push(`Q: ${args.message}`);
+  if (history) parts.push(`Recent user context:\n${history}`);
+  if (args.sessionContextText) parts.push(`Session context:\n${clampText(args.sessionContextText, 1400)}`);
+
+  const base = parts.join('\n\n').trim();
+  const skills = extractSkillsFromText(base).slice(0, 10).map((s) => s.name);
+  const expanded = skills.length > 0 ? `${base}\n\nKey skills/keywords: ${skills.join(', ')}` : base;
+
+  return clampText(expanded, MAX_RETRIEVAL_QUERY_CHARS);
+}
+
+function buildRetrievalConfig(args: {
+  message: string;
+  mode?: 'auto' | 'tech' | 'behavior';
+  requestedSourceTypes?: string[];
+  hasSessionContext: boolean;
+}): { sourceTypes?: string[]; topK: number; intent: ChatIntent } {
+  const intent = detectChatIntent(args.message);
+
+  if (args.mode === 'behavior') {
+    return { intent, topK: 10, sourceTypes: ['story', 'experience', 'resume'] };
+  }
+
+  if (args.mode === 'tech') {
+    return { intent, topK: 10, sourceTypes: ['project', 'article', 'resume', 'skill', 'experience'] };
+  }
+
+  if (intent === 'all_resources') {
+    return {
+      intent,
+      topK: 16,
+      sourceTypes: ['resume', 'experience', 'project', 'story', 'article', 'skill'],
+    };
+  }
+
+  if (intent === 'internships') {
+    return { intent, topK: 12, sourceTypes: ['experience', 'resume', 'story'] };
+  }
+
+  if (intent === 'projects') {
+    return { intent, topK: 10, sourceTypes: ['project', 'resume', 'article'] };
+  }
+
+  if (intent === 'skills') {
+    return { intent, topK: 10, sourceTypes: ['skill', 'resume', 'project', 'experience'] };
+  }
+
+  if (intent === 'cover_letter') {
+    return {
+      intent,
+      topK: 14,
+      sourceTypes: ['resume', 'experience', 'project', 'story', 'article', 'skill'],
+    };
+  }
+
+  if (intent === 'job_search' || args.hasSessionContext) {
+    return {
+      intent,
+      topK: 12,
+      sourceTypes: ['resume', 'experience', 'project', 'story', 'skill', 'article'],
+    };
+  }
+
+  if (Array.isArray(args.requestedSourceTypes) && args.requestedSourceTypes.length > 0) {
+    return {
+      intent,
+      topK: 9,
+      sourceTypes: Array.from(new Set([...args.requestedSourceTypes, 'resume', 'skill', 'experience'])),
+    };
+  }
+
+  return { intent, topK: 9, sourceTypes: undefined };
+}
+
+function buildIntentInstruction(intent: ChatIntent): string {
+  switch (intent) {
+    case 'internships':
+      return (
+        '\n\nAnswer style (internships): Give a concise list of internships/work experiences. ' +
+        'For each, include company, role, dates (if available), and 2–3 concrete highlights. ' +
+        'If dates or metrics are missing in SOURCES, omit them instead of guessing.'
+      );
+    case 'skills':
+      return (
+        '\n\nAnswer style (skills): List the top 5–8 skills and briefly connect each to at least one project/experience when possible. ' +
+        'Prefer specificity over generic statements.'
+      );
+    case 'projects':
+      return (
+        '\n\nAnswer style (projects): List 3–5 representative projects. For each: 1-line what it is + 1-line what I built/did. ' +
+        'Avoid invented metrics; keep it crisp.'
+      );
+    case 'cover_letter':
+      return (
+        '\n\nAnswer style (applications): Write in a real application voice (not a meta analysis). ' +
+        'Do not add a "Relevant facts from sources" preamble. Keep it skimmable and specific.'
+      );
+    case 'job_search':
+      return (
+        '\n\nAnswer style (job search): Be persuasive but honest. Use evidence when available; if a requirement is not covered, say so and propose a fast way to validate.'
+      );
+    case 'all_resources':
+      return (
+        '\n\nAnswer style (all resources): Summarize across resume, experience, projects, skills, and writing. ' +
+        'Organize the answer into 3–5 sections with short bullets (no long walls of text).'
+      );
+    default:
+      return '\n\nAnswer style: Be direct and helpful. Offer a concrete answer first, then optional next steps.';
+  }
+}
+
 function dedupeSourcesForUi(sources: ChunkReference[]): ChunkReference[] {
   const out: ChunkReference[] = [];
   const seen = new Set<string>();
@@ -49,13 +206,20 @@ function dedupeSourcesForUi(sources: ChunkReference[]): ChunkReference[] {
 }
 
 function getSourceHref(source: ChunkReference): string | null {
+  const base = (process.env.NEXT_PUBLIC_SITE_URL || 'https://chengai-tianle.ai-builders.space').replace(/\/$/, '');
+  const toPublicUrl = (path: string) => {
+    if (!path) return path;
+    if (/^https?:\/\//i.test(path)) return path;
+    return `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+  };
+
   const type = source.source_type;
-  if (type === 'article' && source.source_slug) return `/articles/${source.source_slug}`;
-  if (type === 'project' && source.source_slug) return `/projects/${source.source_slug}`;
-  if (type === 'experience') return '/experience';
-  if (type === 'resume') return '/api/resume';
-  if (type === 'story') return '/stories';
-  if (type === 'skill') return '/skills';
+  if (type === 'article' && source.source_slug) return toPublicUrl(`/articles/${source.source_slug}`);
+  if (type === 'project' && source.source_slug) return toPublicUrl(`/projects/${source.source_slug}`);
+  if (type === 'experience') return toPublicUrl('/experience');
+  if (type === 'resume') return toPublicUrl('/api/resume');
+  if (type === 'story') return toPublicUrl('/stories');
+  if (type === 'skill') return toPublicUrl('/skills');
   return null;
 }
 
@@ -281,23 +445,30 @@ export async function POST(request: NextRequest) {
 
     // Retrieve relevant context using RAG
     const requestedSourceTypes = detectSourceTypes(message);
-    const inferredSourceTypes =
-      mode === 'behavior'
-        ? ['story', 'experience', 'resume']
-        : mode === 'tech'
-          ? ['project', 'article', 'resume', 'skill', 'experience']
-          : requestedSourceTypes
-            ? Array.from(new Set([...requestedSourceTypes, 'resume', 'skill', 'experience']))
-            : undefined;
+    const retrievalConfig = buildRetrievalConfig({
+      message,
+      mode,
+      requestedSourceTypes,
+      hasSessionContext: Boolean(sessionContextText),
+    });
 
-    const retrievalQuery = sessionContextText ? `${message}\n\n${sessionContextText.slice(0, 1200)}` : message;
-    let { context, chunks: sources } = await retrieveContext(retrievalQuery, 6, inferredSourceTypes);
+    const retrievalQuery = buildRetrievalQuery({
+      message,
+      conversationHistory: Array.isArray(conversationHistory) ? conversationHistory : null,
+      sessionContextText: sessionContextText || undefined,
+    });
+
+    let { context, chunks: sources } = await retrieveContext(
+      retrievalQuery,
+      retrievalConfig.topK,
+      retrievalConfig.sourceTypes
+    );
 
     // If RAG returns nothing (common when content exists but embeddings haven't been built yet),
     // fall back to a small “catalog” of published content so the assistant can still list things.
     const isFallbackCatalog = !sources || sources.length === 0;
     if (!sources || sources.length === 0) {
-      sources = await getCatalogFallbackSources(inferredSourceTypes);
+      sources = await getCatalogFallbackSources(retrievalConfig.sourceTypes);
       context = formatContextFromSources(sources);
     }
 
@@ -320,6 +491,7 @@ export async function POST(request: NextRequest) {
       : `${CHAT_SYSTEM_PROMPT}\n\nImportant: no directly relevant sources were retrieved for this question. State that clearly and suggest the most relevant pages to check (projects / articles / skills), or ask the user to provide more context.`;
 
     const hardGuardrails = buildHardGuardrails(message);
+    const intentInstruction = buildIntentInstruction(retrievalConfig.intent);
 
     const modeInstruction =
       mode === 'behavior'
@@ -356,7 +528,7 @@ export async function POST(request: NextRequest) {
 
           // Stream the chat response
           for await (const tokenChunk of streamChat(
-            augmentedSystemPrompt + modeInstruction + sessionContextInstruction + hardGuardrails,
+            augmentedSystemPrompt + modeInstruction + intentInstruction + sessionContextInstruction + hardGuardrails,
             userPrompt,
             context
           )) {

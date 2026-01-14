@@ -8,15 +8,25 @@ export interface RetrievalResult {
 }
 
 const MAX_SOURCE_CONTEXT_CHARS = 1800;
+const PUBLIC_SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://chengai-tianle.ai-builders.space').replace(
+  /\/$/,
+  ''
+);
+
+function toPublicUrl(path: string): string {
+  if (!path) return path;
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${PUBLIC_SITE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+}
 
 function getSourceHref(source: ChunkReference): string | null {
   const type = source.source_type;
-  if (type === 'article' && source.source_slug) return `/articles/${source.source_slug}`;
-  if (type === 'project' && source.source_slug) return `/projects/${source.source_slug}`;
-  if (type === 'experience') return '/experience';
-  if (type === 'resume') return '/api/resume';
-  if (type === 'story') return '/stories';
-  if (type === 'skill') return '/skills';
+  if (type === 'article' && source.source_slug) return toPublicUrl(`/articles/${source.source_slug}`);
+  if (type === 'project' && source.source_slug) return toPublicUrl(`/projects/${source.source_slug}`);
+  if (type === 'experience') return toPublicUrl('/experience');
+  if (type === 'resume') return toPublicUrl('/api/resume');
+  if (type === 'story') return toPublicUrl('/stories');
+  if (type === 'skill') return toPublicUrl('/skills');
   return null;
 }
 
