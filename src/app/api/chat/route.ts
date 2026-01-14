@@ -61,12 +61,36 @@ function detectSourceTypes(message: string): string[] | undefined {
 }
 
 function detectChatIntent(message: string): ChatIntent {
-  const m = String(message || '').toLowerCase();
+  const raw = String(message || '').trim();
+  // For long pastes (e.g., full job descriptions), intent keywords may appear inside the JD itself ("apply", "application").
+  // To avoid misclassification, bias intent detection toward the user’s actual ask, which is usually at the beginning or end.
+  const intentText =
+    raw.length > 900 ? `${raw.slice(0, 320)}\n...\n${raw.slice(-640)}` : raw;
+
+  const m = intentText.toLowerCase();
   const has = (re: RegExp) => re.test(m);
 
   if (has(/\bgo through\b|\ball resources\b|\beverything\b|\bread all\b|\buse all\b/)) return 'all_resources';
   if (has(/\bintern(ship)?s?\b|\bintern\b|\bco-?op\b/)) return 'internships';
-  if (has(/\bcover letter\b|\breferral\b|\boutreach\b|\bapplication\b|\bapply\b/)) return 'cover_letter';
+
+  const explicitApplicationRequest =
+    has(/\bcover letter\b|\breferral\b|\boutreach\b|\bintro email\b|\bcold email\b|\blinkedin message\b|\bapplication answers?\b|\bautofill\b|\btailor(ing)?\b/) ||
+    // "apply/application" is too common in pasted JDs; only treat as intent when user is explicitly asking for help applying.
+    has(/\b(help|can you|could you|please)\s+(me\s+)?(apply|with my application)\b/) ||
+    has(/\b(apply|applying)\s+(to|for)\b/) ||
+    has(/\bwrite\b.*\b(cover letter|referral|outreach|email)\b/) ||
+    has(/\bdraft\b.*\b(cover letter|referral|outreach|email)\b/) ||
+    has(/\bgenerate\b.*\b(cover letter|referral|outreach|email)\b/);
+
+  // If the user is asking "do you match / fit", treat it as a match request rather than an application-writing request.
+  const explicitMatchRequest =
+    has(/\bdo you match\b|\bhow well\b|\bam i a good fit\b|\bfit for\b|\bmatch (?:this|it)\b|\bresume match\b|\bkeyword match\b/) ||
+    has(/\bmatch\b.*\brole\b/) ||
+    has(/\bdo i match\b|\bhow well do i match\b/);
+
+  if (explicitMatchRequest) return 'job_search';
+  if (explicitApplicationRequest) return 'cover_letter';
+
   if (has(/\bjob\b|\bjd\b|\bmatch\b|\brole\b|\brecruiter\b|\bhiring\b/)) return 'job_search';
   if (
     has(
@@ -202,12 +226,15 @@ function buildIntentInstruction(intent: ChatIntent): string {
       );
     case 'cover_letter':
       return (
-        '\n\nAnswer style (applications): Write in a real application voice (not a meta analysis). ' +
-        'Do not add a "Relevant facts from sources" preamble. Keep it skimmable and specific.'
+        '\n\nAnswer style (applications): Follow the user’s request precisely (cover letter vs. outreach vs. resume tailoring vs. application answers). ' +
+        'Do NOT output multiple artifacts at once unless explicitly asked. ' +
+        'Write in a real application voice (not a meta analysis). Keep it skimmable and specific.'
       );
     case 'job_search':
       return (
-        '\n\nAnswer style (job search): Be persuasive but honest. Use evidence when available; if a requirement is not covered, say so and propose a fast way to validate.'
+        '\n\nAnswer style (job match): Answer the direct question first (fit/match), then support it with evidence. ' +
+        'Keep it concise: 1 short fit paragraph + 4–8 bullets (strengths + gaps) + 1 suggested next step. ' +
+        'Do NOT draft a cover letter, resume tailoring plan, or application answers unless the user explicitly asks.'
       );
     case 'all_resources':
       return (
