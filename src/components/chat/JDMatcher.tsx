@@ -56,13 +56,32 @@ export default function JDMatcher() {
         body: JSON.stringify({ jd }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to analyze JD');
+      const raw = await response.text();
+      let data: unknown = null;
+      try {
+        data = raw ? (JSON.parse(raw) as unknown) : null;
+      } catch {
+        data = null;
       }
 
-      setResult(data);
+      if (!response.ok) {
+        const maybeError =
+          typeof (data as { error?: unknown } | null)?.error === 'string'
+            ? String((data as { error?: unknown }).error)
+            : null;
+
+        if (maybeError) throw new Error(maybeError);
+        if (response.status === 504) {
+          throw new Error('JD Match timed out (HTTP 504). Try again or paste a shorter JD.');
+        }
+        throw new Error('Failed to analyze JD');
+      }
+
+      if (!data || typeof data !== 'object') {
+        throw new Error('Unexpected response from server.');
+      }
+
+      setResult(data as JDMatchResult);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {

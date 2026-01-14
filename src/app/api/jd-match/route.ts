@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cleanAssistantMarkdown, generateText, JD_PARSE_PROMPT } from '@/lib/ai';
+import { cleanAssistantMarkdown, generateText } from '@/lib/ai';
 import { retrieveContext } from '@/lib/rag';
 import { supabase, DEFAULT_OWNER_ID } from '@/lib/supabase';
 import type { Project, Skill, Story } from '@/types';
 import { extractSkillsFromText } from '@/lib/skills-import';
 
 export const runtime = 'nodejs';
+
+const JD_MAX_CHARS = 10000;
+const MAX_EVIDENCE_CHUNKS = 8;
+const MAX_EVIDENCE_SNIPPET_CHARS = 500;
+const JD_REPORT_MODEL = process.env.AI_JD_REPORT_MODEL || 'grok-4-fast';
+const JD_REPORT_TIMEOUT_MS = Number(process.env.AI_JD_REPORT_TIMEOUT_MS || '2500');
 
 interface JDParseResult {
   required_skills: string[];
@@ -17,6 +23,16 @@ interface JDParseResult {
 }
 
 const JD_SOURCE_TYPES = ['resume', 'experience', 'project', 'story', 'skill'] as const;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  const timeout = new Promise<T>((_, reject) => {
+    const id = setTimeout(() => {
+      clearTimeout(id);
+      reject(new Error(`Timeout after ${ms}ms: ${label}`));
+    }, ms);
+  });
+  return Promise.race([promise, timeout]);
+}
 
 const LANGUAGE_TOKENS = new Set<string>([
   'python',
@@ -156,6 +172,77 @@ function clampText(value: string, maxChars: number): string {
   return v.slice(0, maxChars) + '…';
 }
 
+function parseYearsExperience(jd: string): number | null {
+  const text = String(jd || '');
+  const matches = Array.from(text.matchAll(/\b(\d{1,2})\s*\+?\s*(?:years?|yrs?)\b/gi));
+  const values = matches
+    .map((m) => Number(m[1]))
+    .filter((n) => Number.isFinite(n) && n > 0 && n < 50);
+  if (values.length === 0) return null;
+  return Math.max(...values);
+}
+
+function extractBulletLines(jd: string, maxItems: number): string[] {
+  const lines = String(jd || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const bullets: string[] = [];
+  for (const line of lines) {
+    if (!/^(?:[-*]\s+|•\s+)/.test(line)) continue;
+    const cleaned = line.replace(/^(?:[-*]\s+|•\s+)/, '').trim();
+    if (cleaned.length < 8) continue;
+    bullets.push(cleaned);
+    if (bullets.length >= maxItems) break;
+  }
+  return bullets;
+}
+
+function extractExtraTechTermsFromJD(jd: string): string[] {
+  const candidates: Array<{ name: string; re: RegExp }> = [
+    { name: 'Presto', re: /\bpresto\b/i },
+    { name: 'Trino', re: /\btrino\b/i },
+    { name: 'Athena', re: /\bathena\b/i },
+    { name: 'BigQuery', re: /\bbigquery\b/i },
+    { name: 'Spark', re: /\bspark\b/i },
+    { name: 'Airflow', re: /\bairflow\b/i },
+    { name: 'Oozie', re: /\boozie\b/i },
+    { name: 'Dataproc', re: /\bdataproc\b/i },
+    { name: 'MWAA', re: /\bmwaa\b/i },
+    { name: 'ECS', re: /\becs\b/i },
+    { name: 'CloudFormation', re: /\bcloudformation\b/i },
+    { name: 'Ansible', re: /\bansible\b/i },
+    { name: 'Vertex AI', re: /\bvertex\s*ai\b|\bvertexai\b/i },
+    { name: 'SageMaker', re: /\bsagemaker\b|\bsage\s*maker\b/i },
+    { name: 'Unix', re: /\bunix\b/i },
+    { name: 'Linux', re: /\blinux\b/i },
+    { name: 'Perl', re: /\bperl\b/i },
+  ];
+
+  return dedupeStrings(candidates.filter((c) => c.re.test(jd)).map((c) => c.name));
+}
+
+function parseJDHeuristic(jd: string): JDParseResult {
+  const skills = extractSkillsFromText(jd).map((s) => s.name);
+  const extras = extractExtraTechTermsFromJD(jd);
+
+  const skillKeys = new Set(skills.map((s) => normalizeToken(s)));
+  const preferred = extras.filter((t) => !skillKeys.has(normalizeToken(t)));
+
+  const responsibilities = extractBulletLines(jd, 10);
+  const years_experience = parseYearsExperience(jd);
+
+  return {
+    required_skills: skills,
+    preferred_skills: preferred,
+    years_experience,
+    responsibilities,
+    soft_skills: [],
+    keywords: dedupeStrings([...skills, ...preferred]),
+  };
+}
+
 function getSourceHref(source: { source_type: string; source_slug?: string | null }): string | null {
   const base = (process.env.NEXT_PUBLIC_SITE_URL || 'https://chengai-tianle.ai-builders.space').replace(/\/$/, '');
   const toPublicUrl = (path: string) => {
@@ -183,11 +270,13 @@ function buildEvidenceContext(
   }>
 ): string {
   return (chunks || [])
+    .slice(0, MAX_EVIDENCE_CHUNKS)
     .map((c) => {
       const url = getSourceHref(c);
       const urlLine = url ? `\nURL: ${url}` : '';
       const slugLine = c.source_slug ? ` (slug: ${c.source_slug})` : '';
-      return `Type: ${c.source_type}\nTitle: ${c.source_title}${slugLine}${urlLine}\nSnippet: ${c.content_preview}`;
+      const snippet = clampText(c.content_preview, MAX_EVIDENCE_SNIPPET_CHARS);
+      return `Type: ${c.source_type}\nTitle: ${c.source_title}${slugLine}${urlLine}\nSnippet: ${snippet}`;
     })
     .join('\n\n');
 }
@@ -360,6 +449,90 @@ function computeCoverage(
   return { total, matched, gaps };
 }
 
+function buildFallbackReportMarkdown(params: {
+  matchScore: number;
+  score_breakdown: {
+    raw_coverage_pct: number;
+    adjusted_coverage_pct: number;
+    curve: number;
+    is_entry_level: boolean;
+    weighted_requirements: {
+      required: { matched: number; total: number; weight: number };
+      preferred: { matched: number; total: number; weight: number };
+    };
+  };
+  matchedSkills: Array<{ skill: Skill; matchedRequirement: string }>;
+  gaps: string[];
+  relevant_projects: Project[];
+  suggested_stories: Story[];
+}): string {
+  const topSkills = params.matchedSkills
+    .slice(0, 10)
+    .map((s) => s.skill.name)
+    .filter(Boolean)
+    .join(', ');
+  const topProjects = params.relevant_projects
+    .slice(0, 4)
+    .map((p) => p.title)
+    .filter(Boolean)
+    .join(', ');
+  const topStories = params.suggested_stories
+    .slice(0, 3)
+    .map((s) => s.title)
+    .filter(Boolean)
+    .join(', ');
+  const topGaps = params.gaps.slice(0, 8).join(', ');
+
+  const lines: string[] = [];
+  lines.push('### JD Match Report: Charlie Cheng');
+  lines.push('');
+  lines.push(
+    `**Fit snapshot.** Match score: **${params.matchScore}%** (raw ${params.score_breakdown.raw_coverage_pct}% → adjusted ${params.score_breakdown.adjusted_coverage_pct}%, curve=${params.score_breakdown.curve}, entry-level=${String(params.score_breakdown.is_entry_level)}).`
+  );
+  if (topSkills) lines.push(`Strong overlap: ${topSkills}.`);
+  if (topGaps) lines.push(`Notable gaps: ${topGaps}.`);
+  lines.push('');
+  lines.push('#### Coverage overview');
+  lines.push('');
+  lines.push('| Group | Covered | Weight |');
+  lines.push('| --- | ---: | ---: |');
+  lines.push(
+    `| Required | ${params.score_breakdown.weighted_requirements.required.matched}/${params.score_breakdown.weighted_requirements.required.total} | ${params.score_breakdown.weighted_requirements.required.weight} |`
+  );
+  lines.push(
+    `| Preferred | ${params.score_breakdown.weighted_requirements.preferred.matched}/${params.score_breakdown.weighted_requirements.preferred.total} | ${params.score_breakdown.weighted_requirements.preferred.weight} |`
+  );
+  lines.push('');
+  lines.push('#### Evidence-backed highlights');
+  lines.push('');
+  if (topProjects) lines.push(`- Most relevant projects to deep-dive: ${topProjects}.`);
+  if (topStories) lines.push(`- Suggested behavioral stories: ${topStories}.`);
+  if (!topProjects && !topStories) {
+    lines.push('- Review the sources below for the strongest evidence and concrete examples.');
+  }
+  lines.push('');
+  lines.push('#### Gaps / risks & how to validate');
+  lines.push('');
+  if (params.gaps.length > 0) {
+    lines.push(`- Missing / not found in sources: ${topGaps}.`);
+    lines.push('- Validation: ask targeted questions or do a short take-home to confirm ramp-up speed on missing tools.');
+  } else {
+    lines.push('- No major gaps detected from the JD keywords; validate depth via a technical deep-dive on relevant projects.');
+  }
+  lines.push('');
+  lines.push('#### Suggested interview angles');
+  lines.push('');
+  if (params.relevant_projects.length > 0) {
+    lines.push(`- Deep dive a project: "${params.relevant_projects[0].title}" (architecture, tradeoffs, metrics, reliability).`);
+  }
+  if (params.suggested_stories.length > 0) {
+    lines.push(`- Behavioral: "${params.suggested_stories[0].title}" (Situation/Task/Action/Result, leadership, collaboration).`);
+  }
+  lines.push('- Probe LLM system design: retrieval strategy, evaluation, latency/cost tradeoffs, and failure modes.');
+
+  return lines.join('\n');
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { jd } = await request.json();
@@ -371,45 +544,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (jd.length > 10000) {
+    if (jd.length > JD_MAX_CHARS) {
       return NextResponse.json(
-        { error: 'Job description is too long (max 10000 characters)' },
+        { error: `Job description is too long (max ${JD_MAX_CHARS} characters)` },
         { status: 400 }
       );
     }
 
-    // Parse JD using AI
-    const parseResultRaw = await generateText(JD_PARSE_PROMPT, jd, { temperature: 0 });
-    
-    // Extract JSON from response
-    let parseResult: JDParseResult;
-    try {
-      parseResult = JSON.parse(parseResultRaw) as JDParseResult;
-    } catch {
-      try {
-        const jsonMatch = parseResultRaw.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) {
-          return NextResponse.json(
-            { error: 'Failed to parse job description. Please try with a cleaner JD.' },
-            { status: 422 }
-          );
-        }
-        parseResult = JSON.parse(jsonMatch[0]) as JDParseResult;
-      } catch {
-        return NextResponse.json(
-          { error: 'Failed to parse job description structure' },
-          { status: 422 }
-        );
-      }
-    }
+    const jdText = String(jd || '').trim();
+    const parseResult = parseJDHeuristic(jdText);
 
     const requiredRaw = Array.isArray(parseResult.required_skills) ? parseResult.required_skills : [];
     const preferredRaw = Array.isArray(parseResult.preferred_skills) ? parseResult.preferred_skills : [];
-    const keywords = Array.isArray(parseResult.keywords) ? parseResult.keywords : [];
+    const keywordsRaw = Array.isArray(parseResult.keywords) ? parseResult.keywords : [];
     const responsibilities = Array.isArray(parseResult.responsibilities) ? parseResult.responsibilities : [];
 
     const required = sanitizeTechRequirements(requiredRaw);
     const preferred = sanitizeTechRequirements(preferredRaw);
+    const keywords = dedupeStrings([...keywordsRaw, ...required, ...preferred]);
 
     const allKeywords = dedupeStrings([...required, ...preferred, ...keywords]);
 
@@ -422,43 +574,33 @@ export async function POST(request: NextRequest) {
         keywords,
         responsibilities,
       },
-      jd
+      jdText
     );
 
-    const retrieval = await retrieveContext(query, 16, [...JD_SOURCE_TYPES]);
+    const retrieval = await retrieveContext(query, 10, [...JD_SOURCE_TYPES]);
     const matchedChunks = retrieval.chunks || [];
     const evidenceContext = buildEvidenceContext(matchedChunks);
     const evidenceHay = normalizeToken(evidenceContext);
 
-    // Get user's skills
-    const { data: skills } = await supabase
-      .from('skills')
-      .select('*')
-      .eq('owner_id', DEFAULT_OWNER_ID);
+    const [skillsRes, projectsRes, storiesRes] = await Promise.all([
+      supabase.from('skills').select('*').eq('owner_id', DEFAULT_OWNER_ID),
+      supabase.from('projects').select('*').eq('owner_id', DEFAULT_OWNER_ID).eq('status', 'published'),
+      supabase.from('stories').select('*').eq('owner_id', DEFAULT_OWNER_ID).eq('is_public', true),
+    ]);
 
-    // Get relevant projects
-    const { data: projects } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('owner_id', DEFAULT_OWNER_ID)
-      .eq('status', 'published');
-
-    // Get stories for behavioral evidence
-    const { data: stories } = await supabase
-      .from('stories')
-      .select('*')
-      .eq('owner_id', DEFAULT_OWNER_ID)
-      .eq('is_public', true);
+    const skills = skillsRes.data;
+    const projects = projectsRes.data;
+    const stories = storiesRes.data;
 
     // Determine matched skills using better normalization and direct JD text scanning.
     const jdTerms = dedupeStrings([...required, ...preferred, ...keywords]);
     const skillsData = (skills || []) as Skill[];
     const matchedSkills = skillsData.flatMap((skill) => {
       const matchedRequirement =
-        matchSkillToTerms(skill.name, required, jd) ||
-        matchSkillToTerms(skill.name, preferred, jd) ||
-        matchSkillToTerms(skill.name, keywords, jd) ||
-        matchSkillToTerms(skill.name, jdTerms, jd);
+        matchSkillToTerms(skill.name, required, jdText) ||
+        matchSkillToTerms(skill.name, preferred, jdText) ||
+        matchSkillToTerms(skill.name, keywords, jdText) ||
+        matchSkillToTerms(skill.name, jdTerms, jdText);
       return matchedRequirement ? [{ skill, matchedRequirement }] : [];
     });
 
@@ -466,7 +608,7 @@ export async function POST(request: NextRequest) {
     const requiredCoverage = computeCoverage(required, matchedSkills, evidenceHay);
     const preferredCoverage = computeCoverage(preferred, matchedSkills, evidenceHay);
 
-    const isEntryLevel = /\bnew\s*grad(uate)?\b|\bearly[- ]career\b|\bentry[- ]level\b|\bjunior\b/i.test(jd);
+    const isEntryLevel = /\bnew\s*grad(uate)?\b|\bearly[- ]career\b|\bentry[- ]level\b|\bjunior\b/i.test(jdText);
     const requiredWeight = 2;
     const preferredWeight = isEntryLevel ? 0.5 : 1;
 
@@ -550,7 +692,7 @@ export async function POST(request: NextRequest) {
       2
     );
 
-    const reportPrompt = `You are a senior technical recruiter and hiring manager.\n\nYou are writing a JD match report for the candidate:\n- Name: Charlie Cheng\n- Website: https://chengai-tianle.ai-builders.space/\n\nHard requirements:\n- English only.\n- Use the canonical name \"Charlie Cheng\" (never older variants).\n- Evidence-first: ONLY use facts that appear in the SOURCES section. Do not invent skills, companies, dates, metrics, visas, or claims.\n- If you mention a metric, copy it exactly as written in SOURCES.\n- Be useful even when evidence is sparse: if something isn't supported, say it's not specified and propose a reasonable way to validate in interview.\n- Do NOT include \"SOURCE 1\" style citations. The UI shows sources separately.\n- If gaps are listed, you MUST NOT claim the candidate \"meets all requirements\".\n\nOutput format (Markdown):\n1) Fit snapshot (1 short paragraph)\n2) Evidence-backed strengths (3–6 bullets)\n3) Requirement coverage (table with 6–10 rows: Requirement | Evidence summary | Where)\n4) Gaps / risks (bullets) + honest mitigation\n5) Suggested interview angles (2–4 bullets) — pick projects/experiences/stories from sources\n\nJob description (verbatim, may be truncated):\n${clampText(jd, 6000)}\n\nParsed JD (JSON):\n${parsedJDJson}\n\nComputed match snapshot:\n- Match score: ${matchScore}%\n- Score transparency: raw ${score_breakdown.raw_coverage_pct}% → adjusted ${score_breakdown.adjusted_coverage_pct}% (curve=${score_breakdown.curve}, entry-level=${score_breakdown.is_entry_level})\n- Matched skills: ${matchedSkills.slice(0, 12).map((s) => s.skill.name).join(', ') || 'n/a'}\n- Gaps: ${gaps.slice(0, 12).join(', ') || 'None'}\n- Top projects: ${relevant_projects.slice(0, 3).map((p) => p.title).join(', ') || 'n/a'}\n\nSOURCES:\n${evidenceContext}\n`;
+    const reportPrompt = `You are a senior technical recruiter and hiring manager.\n\nYou are writing a JD match report for the candidate:\n- Name: Charlie Cheng\n- Website: https://chengai-tianle.ai-builders.space/\n\nHard requirements:\n- English only.\n- Use the canonical name \"Charlie Cheng\" (never older variants).\n- Evidence-first: ONLY use facts that appear in the SOURCES section. Do not invent skills, companies, dates, metrics, visas, or claims.\n- If you mention a metric, copy it exactly as written in SOURCES.\n- Be useful even when evidence is sparse: if something isn't supported, say it's not specified and propose a reasonable way to validate in interview.\n- Do NOT include \"SOURCE 1\" style citations. The UI shows sources separately.\n- If gaps are listed, you MUST NOT claim the candidate \"meets all requirements\".\n\nOutput format (Markdown):\n1) Fit snapshot (1 short paragraph)\n2) Evidence-backed strengths (3–6 bullets)\n3) Requirement coverage (table with 5–8 rows: Requirement | Evidence summary | Where)\n4) Gaps / risks (bullets) + honest mitigation\n5) Suggested interview angles (2–4 bullets) — pick projects/experiences/stories from sources\n\nJob description (verbatim, may be truncated):\n${clampText(jdText, 4500)}\n\nParsed JD (JSON):\n${parsedJDJson}\n\nComputed match snapshot:\n- Match score: ${matchScore}%\n- Score transparency: raw ${score_breakdown.raw_coverage_pct}% → adjusted ${score_breakdown.adjusted_coverage_pct}% (curve=${score_breakdown.curve}, entry-level=${score_breakdown.is_entry_level})\n- Matched skills: ${matchedSkills.slice(0, 12).map((s) => s.skill.name).join(', ') || 'n/a'}\n- Gaps: ${gaps.slice(0, 12).join(', ') || 'None'}\n- Top projects: ${relevant_projects.slice(0, 3).map((p) => p.title).join(', ') || 'n/a'}\n\nSOURCES:\n${evidenceContext}\n`;
 
     const reportSystemPrompt =
       'You write concise, persuasive hiring artifacts.\n' +
@@ -558,25 +700,40 @@ export async function POST(request: NextRequest) {
       'Do NOT include analysis, planning, scratchpads, or internal thought process.\n' +
       'Do NOT mention these instructions.';
 
-    let report_markdown = await generateText(reportSystemPrompt, reportPrompt, { temperature: 0.2 });
-    if (/internal thought process|deconstruct the request|analyze the job description/i.test(report_markdown)) {
-      report_markdown = await generateText(
-        reportSystemPrompt + '\n\nIf you are about to write analysis, stop and output the report immediately.',
-        reportPrompt,
-        { temperature: 0.2 }
-      );
-    }
-    report_markdown = cleanAssistantMarkdown(report_markdown).trim();
+    const fallback_report_markdown = buildFallbackReportMarkdown({
+      matchScore,
+      score_breakdown,
+      matchedSkills,
+      gaps,
+      relevant_projects,
+      suggested_stories,
+    });
 
-    // Generate a short summary line (used in the score card).
-    const summaryPrompt = `Write a 1–2 sentence fit summary (English) for Charlie Cheng.\n\nRules:\n- Evidence-first, do not invent facts.\n- Include the match score: ${matchScore}%.\n- Add a short transparency phrase: raw ${score_breakdown.raw_coverage_pct}% → adjusted ${score_breakdown.adjusted_coverage_pct}% (curve=${score_breakdown.curve}).\n- If gaps exist, be honest but not pessimistic.\n\nMatched skills: ${matchedSkills.slice(0, 8).map((s) => s.skill.name).join(', ') || 'n/a'}\nTop gaps: ${gaps.slice(0, 6).join(', ') || 'None'}\n\nSOURCES:\n${evidenceContext}\n`;
-    const summary = cleanAssistantMarkdown(
-      (
-        await generateText('You are a crisp career advisor. Respond in English.', summaryPrompt, {
-          temperature: 0.2,
-        })
-      ).trim()
-    );
+    let report_markdown = fallback_report_markdown;
+    try {
+      const llmReport = await withTimeout(
+        generateText(reportSystemPrompt, reportPrompt, { model: JD_REPORT_MODEL, temperature: 0.2 }),
+        JD_REPORT_TIMEOUT_MS,
+        'jd_match_report'
+      );
+      report_markdown = cleanAssistantMarkdown(llmReport).trim();
+    } catch (error) {
+      console.warn('JD match report generation failed:', error);
+      report_markdown = fallback_report_markdown;
+    }
+
+    const topSkills = matchedSkills
+      .slice(0, 6)
+      .map((s) => s.skill.name)
+      .filter(Boolean)
+      .join(', ');
+    const topGaps = gaps.slice(0, 4).join(', ');
+    const summaryParts = [
+      `Match: ${matchScore}% (raw ${score_breakdown.raw_coverage_pct}% → adjusted ${score_breakdown.adjusted_coverage_pct}%, curve=${score_breakdown.curve}).`,
+      topSkills ? `Strong overlap: ${topSkills}.` : '',
+      topGaps ? `Notable gaps: ${topGaps}.` : '',
+    ].filter(Boolean);
+    const summary = summaryParts.slice(0, 2).join(' ');
 
     return NextResponse.json({
       match_score: matchScore,
