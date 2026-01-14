@@ -14,6 +14,7 @@ export default function ChatPage({
   const rawMode = typeof searchParams?.mode === 'string' ? searchParams.mode : undefined;
   const initialMode =
     rawMode === 'auto' || rawMode === 'tech' || rawMode === 'behavior' ? rawMode : undefined;
+  const startFresh = searchParams?.new === '1';
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
@@ -23,7 +24,7 @@ export default function ChatPage({
       </div>
 
       <div className="mx-auto flex h-full w-full max-w-5xl flex-1 min-h-0 flex-col px-0 py-0 sm:px-6 sm:py-8 lg:px-8">
-        <ChatInterface initialMessage={initialMessage} initialMode={initialMode} />
+        <ChatInterface initialMessage={initialMessage} initialMode={initialMode} startFresh={startFresh} />
       </div>
     </div>
   );

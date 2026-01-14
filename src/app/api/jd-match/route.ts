@@ -185,24 +185,144 @@ function buildEvidenceContext(
     .join('\n\n');
 }
 
+function buildEvidenceNeedles(requirement: string): string[] {
+  const base = normalizeToken(requirement);
+  const needles = new Set<string>();
+
+  const add = (value: string) => {
+    const norm = normalizeToken(value);
+    if (norm) needles.add(norm);
+  };
+
+  add(requirement);
+
+  if (/\bllm\b/.test(base) || base.includes('large language model') || base.includes('genai') || base.includes('generative ai')) {
+    add('openai');
+    add('gpt');
+    add('gemini');
+    add('claude');
+    add('rag');
+    add('agent');
+    add('agents');
+  }
+
+  if (base.includes('prompt')) {
+    add('prompt');
+    add('prompting');
+    add('prompt design');
+    add('prompt tuning');
+    add('prompt experimentation');
+  }
+
+  if (base.includes('rag') || base.includes('retrieval')) {
+    add('rag');
+    add('retrieval');
+    add('vector');
+    add('embedding');
+    add('embeddings');
+    add('bm25');
+    add('pgvector');
+  }
+
+  if (base.includes('agent')) {
+    add('agent');
+    add('agents');
+    add('agentic');
+    add('tool use');
+    add('mcp');
+  }
+
+  if (base.includes('llamaindex')) {
+    // Treat comparable frameworks as evidence of transferable skill.
+    add('llamaindex');
+    add('langchain');
+    add('langgraph');
+    add('semantic kernel');
+    add('crewai');
+    add('agents');
+  }
+
+  if (base.includes('langchain') || base.includes('langgraph') || base.includes('semantic kernel') || base.includes('agents sdk') || base.includes('agent sdk')) {
+    // Treat adjacent frameworks as interchangeable for early-career roles.
+    add('langchain');
+    add('langgraph');
+    add('semantic kernel');
+    add('crewai');
+  }
+
+  if (base.includes('evaluation') || base.includes('eval') || base.includes('model evaluation')) {
+    add('evaluation');
+    add('eval');
+    add('accuracy');
+    add('latency');
+    add('cost');
+    add('robust');
+    add('monitor');
+    add('observability');
+  }
+
+  if (base === 'typescript' || base === 'ts') {
+    add('typescript');
+    add('ts');
+  }
+
+  if (base === 'javascript' || base === 'js') {
+    add('javascript');
+    add('js');
+  }
+
+  if (base.includes('ci cd') || base.includes('cicd')) {
+    add('ci cd');
+    add('cicd');
+    add('github actions');
+    add('pipeline');
+  }
+
+  if (base.includes('docker')) {
+    add('docker');
+    add('docker compose');
+  }
+
+  return Array.from(needles);
+}
+
+function includesNeedle(hay: string, needle: string): boolean {
+  if (!needle) return false;
+  const h = ` ${hay} `;
+  const n = ` ${needle} `;
+  return h.includes(n);
+}
+
 function requirementSatisfied(
   requirement: string,
-  matchedSkills: Array<{ skill: Skill; matchedRequirement: string }>
+  matchedSkills: Array<{ skill: Skill; matchedRequirement: string }>,
+  evidenceHay: string
 ): boolean {
   const reqNorm = normalizeToken(requirement);
   if (!reqNorm) return false;
 
-  return matchedSkills.some(({ skill, matchedRequirement }) => {
+  const direct = matchedSkills.some(({ skill, matchedRequirement }) => {
     const matchedNorm = normalizeToken(matchedRequirement || skill.name);
     if (!matchedNorm) return false;
     if (matchedNorm.length < 3 || reqNorm.length < 3) return matchedNorm === reqNorm;
     return matchedNorm.includes(reqNorm) || reqNorm.includes(matchedNorm);
   });
+
+  if (direct) return true;
+
+  if (!evidenceHay) return false;
+  for (const needle of buildEvidenceNeedles(requirement)) {
+    if (!needle) continue;
+    if (needle.length < 2) continue;
+    if (includesNeedle(evidenceHay, needle)) return true;
+  }
+  return false;
 }
 
 function computeCoverage(
   requirements: string[],
-  matchedSkills: Array<{ skill: Skill; matchedRequirement: string }>
+  matchedSkills: Array<{ skill: Skill; matchedRequirement: string }>,
+  evidenceHay: string
 ): { total: number; matched: number; gaps: string[] } {
   const languageReqs = requirements.filter(isLanguageTerm);
   const nonLanguageReqs = requirements.filter((r) => !isLanguageTerm(r));
@@ -213,7 +333,7 @@ function computeCoverage(
 
   if (languageReqs.length > 0) {
     total += 1;
-    const satisfied = languageReqs.some((req) => requirementSatisfied(req, matchedSkills));
+    const satisfied = languageReqs.some((req) => requirementSatisfied(req, matchedSkills, evidenceHay));
     if (satisfied) {
       matched += 1;
     } else {
@@ -223,7 +343,7 @@ function computeCoverage(
 
   for (const req of nonLanguageReqs) {
     total += 1;
-    if (requirementSatisfied(req, matchedSkills)) {
+    if (requirementSatisfied(req, matchedSkills, evidenceHay)) {
       matched += 1;
     } else {
       gaps.push(req);
@@ -301,6 +421,7 @@ export async function POST(request: NextRequest) {
     const retrieval = await retrieveContext(query, 16, [...JD_SOURCE_TYPES]);
     const matchedChunks = retrieval.chunks || [];
     const evidenceContext = buildEvidenceContext(matchedChunks);
+    const evidenceHay = normalizeToken(evidenceContext);
 
     // Get user's skills
     const { data: skills } = await supabase
@@ -335,11 +456,15 @@ export async function POST(request: NextRequest) {
     });
 
     // Calculate match score
-    const requiredCoverage = computeCoverage(required, matchedSkills);
-    const preferredCoverage = computeCoverage(preferred, matchedSkills);
+    const requiredCoverage = computeCoverage(required, matchedSkills, evidenceHay);
+    const preferredCoverage = computeCoverage(preferred, matchedSkills, evidenceHay);
 
-    const denom = requiredCoverage.total * 2 + preferredCoverage.total;
-    const numer = requiredCoverage.matched * 2 + preferredCoverage.matched;
+    const isEntryLevel = /\bnew\s*grad(uate)?\b|\bearly[- ]career\b|\bentry[- ]level\b|\bjunior\b/i.test(jd);
+    const requiredWeight = 2;
+    const preferredWeight = isEntryLevel ? 0.5 : 1;
+
+    const denom = requiredCoverage.total * requiredWeight + preferredCoverage.total * preferredWeight;
+    const numer = requiredCoverage.matched * requiredWeight + preferredCoverage.matched * preferredWeight;
     const matchScore = denom === 0 ? 50 : Math.min(100, Math.round((numer / denom) * 100));
 
     // Find gaps (always include required gaps; include a few preferred gaps as "risks")

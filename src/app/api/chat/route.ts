@@ -264,7 +264,7 @@ async function getCatalogFallbackSources(sourceTypes?: string[]): Promise<ChunkR
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, conversationHistory, mode } = await request.json();
+    const { message, conversationHistory, mode, sessionContext } = await request.json();
 
     if (!message || typeof message !== 'string') {
       return new Response(JSON.stringify({ error: 'Message is required' }), {
@@ -272,6 +272,9 @@ export async function POST(request: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
       });
     }
+
+    const sessionContextText =
+      typeof sessionContext === 'string' ? sessionContext.trim().slice(0, 12000) : '';
 
     // Rate limiting check (simple in-memory for now)
     // TODO: Implement proper rate limiting with Redis
@@ -287,7 +290,8 @@ export async function POST(request: NextRequest) {
             ? Array.from(new Set([...requestedSourceTypes, 'resume', 'skill', 'experience']))
             : undefined;
 
-    let { context, chunks: sources } = await retrieveContext(message, 6, inferredSourceTypes);
+    const retrievalQuery = sessionContextText ? `${message}\n\n${sessionContextText.slice(0, 1200)}` : message;
+    let { context, chunks: sources } = await retrieveContext(retrievalQuery, 6, inferredSourceTypes);
 
     // If RAG returns nothing (common when content exists but embeddings haven't been built yet),
     // fall back to a small “catalog” of published content so the assistant can still list things.
@@ -324,6 +328,18 @@ export async function POST(request: NextRequest) {
           ? '\n\nMode: tech deep dive. Prioritize concrete technical details, trade-offs, and verifiable facts. Use the provided SOURCES (projects / resume / experience / articles) and clearly separate facts from assumptions.'
           : '';
 
+    const sessionContextInstruction = sessionContextText
+      ? '\n\nSession context: the user may provide extra context (e.g., a job description and a prior match report). Use it to answer follow-ups, but do NOT treat it as verified candidate facts unless the SOURCES explicitly support it.'
+      : '';
+
+    const userPromptParts: string[] = [];
+    if (historyContext) userPromptParts.push(historyContext);
+    if (sessionContextText) {
+      userPromptParts.push(`Session context (user-provided):\n${sessionContextText}`);
+    }
+    userPromptParts.push(`User: ${message}`);
+    const userPrompt = userPromptParts.join('\n\n');
+
     // Create streaming response
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
@@ -340,8 +356,8 @@ export async function POST(request: NextRequest) {
 
           // Stream the chat response
           for await (const tokenChunk of streamChat(
-            augmentedSystemPrompt + modeInstruction + hardGuardrails,
-            `${historyContext}\n\nUser: ${message}`,
+            augmentedSystemPrompt + modeInstruction + sessionContextInstruction + hardGuardrails,
+            userPrompt,
             context
           )) {
             if (tokenChunk.type === 'replace') {

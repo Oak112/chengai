@@ -265,8 +265,25 @@ export default function JDMatcher() {
           {/* CTA */}
           <div className="flex gap-4">
             <Link
-              href="/chat"
-              onClick={() => trackEvent('jd_match_cta_click', { cta: 'chat' })}
+              href="/chat?new=1&mode=tech"
+              onClick={() => {
+                trackEvent('jd_match_cta_click', { cta: 'chat' });
+                try {
+                  localStorage.setItem(
+                    'chengai_session_context_v1',
+                    JSON.stringify({
+                      kind: 'jd_match',
+                      jd,
+                      match_score: result.match_score,
+                      summary: result.summary,
+                      report_markdown: result.report_markdown || undefined,
+                      created_at: new Date().toISOString(),
+                    })
+                  );
+                } catch {
+                  // ignore
+                }
+              }}
               className="flex-1 rounded-xl bg-blue-600 py-3 text-center text-sm font-medium text-white hover:bg-blue-700"
             >
               Ask AI More Questions

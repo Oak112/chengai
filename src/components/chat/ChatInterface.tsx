@@ -8,9 +8,27 @@ import Link from 'next/link';
 import type { ChatMessage, ChunkReference } from '@/types';
 import { trackEvent } from '@/lib/analytics';
 
+const SESSION_CONTEXT_KEY = 'chengai_session_context_v1';
+
 interface ChatInterfaceProps {
   initialMessage?: string;
   initialMode?: 'auto' | 'tech' | 'behavior';
+  startFresh?: boolean;
+}
+
+type JdSessionContext = {
+  kind: 'jd_match';
+  jd: string;
+  match_score?: number;
+  summary?: string;
+  report_markdown?: string;
+  created_at?: string;
+};
+
+function clampText(value: string, maxChars: number): string {
+  const v = String(value || '').trim();
+  if (v.length <= maxChars) return v;
+  return `${v.slice(0, maxChars)}…`;
 }
 
 function dedupeSources(sources: ChunkReference[]): ChunkReference[] {
@@ -39,11 +57,12 @@ function getSourceHref(source: ChunkReference): string | null {
   return null;
 }
 
-export default function ChatInterface({ initialMessage, initialMode }: ChatInterfaceProps) {
+export default function ChatInterface({ initialMessage, initialMode, startFresh }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState(initialMessage || '');
   const [isLoading, setIsLoading] = useState(false);
   const [mode, setMode] = useState<'auto' | 'tech' | 'behavior'>(initialMode || 'auto');
+  const [sessionContext, setSessionContext] = useState<JdSessionContext | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
 
@@ -57,8 +76,69 @@ export default function ChatInterface({ initialMessage, initialMode }: ChatInter
     []
   );
 
+  const sessionContextText = useMemo(() => {
+    if (!sessionContext) return null;
+
+    const parts: string[] = [];
+    if (sessionContext.match_score !== undefined) {
+      parts.push(`JD match score: ${sessionContext.match_score}%`);
+    }
+    parts.push(`Job description:\n${clampText(sessionContext.jd, 6000)}`);
+    if (sessionContext.summary) {
+      parts.push(`Prior match summary:\n${clampText(sessionContext.summary, 800)}`);
+    }
+    if (sessionContext.report_markdown) {
+      parts.push(`Prior match report (markdown):\n${clampText(sessionContext.report_markdown, 6000)}`);
+    }
+    return parts.join('\n\n');
+  }, [sessionContext]);
+
+  const clearSessionContext = () => {
+    try {
+      localStorage.removeItem(SESSION_CONTEXT_KEY);
+    } catch {
+      // ignore
+    }
+    trackEvent('chat_session_context_cleared', { kind: sessionContext?.kind || 'unknown' });
+    setSessionContext(null);
+  };
+
+  // Optionally start a fresh chat (e.g., when coming from JD Match)
+  useEffect(() => {
+    if (!startFresh) return;
+    setMessages([]);
+    setInput(initialMessage || '');
+    setMode(initialMode || 'auto');
+    try {
+      localStorage.removeItem('chengai_chat_v1');
+    } catch {
+      // ignore
+    }
+  }, [startFresh, initialMessage, initialMode]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SESSION_CONTEXT_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Partial<JdSessionContext>;
+      if (parsed.kind !== 'jd_match') return;
+      if (typeof parsed.jd !== 'string' || parsed.jd.trim().length < 50) return;
+      setSessionContext({
+        kind: 'jd_match',
+        jd: parsed.jd,
+        match_score: typeof parsed.match_score === 'number' ? parsed.match_score : undefined,
+        summary: typeof parsed.summary === 'string' ? parsed.summary : undefined,
+        report_markdown: typeof parsed.report_markdown === 'string' ? parsed.report_markdown : undefined,
+        created_at: typeof parsed.created_at === 'string' ? parsed.created_at : undefined,
+      });
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // Load persisted chat history
   useEffect(() => {
+    if (startFresh) return;
     try {
       const raw = localStorage.getItem('chengai_chat_v1');
       if (!raw) return;
@@ -73,7 +153,7 @@ export default function ChatInterface({ initialMessage, initialMode }: ChatInter
     } catch {
       // ignore
     }
-  }, [initialMode]);
+  }, [initialMode, startFresh]);
 
   // Persist chat history
   useEffect(() => {
@@ -138,6 +218,7 @@ export default function ChatInterface({ initialMessage, initialMode }: ChatInter
           message: userMessage.content,
           conversationHistory: messages.slice(-4),
           mode,
+          sessionContext: sessionContextText || undefined,
         }),
       });
 
@@ -277,6 +358,33 @@ export default function ChatInterface({ initialMessage, initialMode }: ChatInter
             </button>
           </div>
         </div>
+
+        {sessionContext && (
+          <div className="mt-2 flex items-start justify-between gap-3 rounded-2xl border border-zinc-200/70 bg-white/70 px-3 py-2 shadow-sm backdrop-blur dark:border-zinc-800/70 dark:bg-zinc-950/50">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-zinc-900 dark:text-white">
+                <Sparkles className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                <span>JD context attached</span>
+                {sessionContext.match_score !== undefined && (
+                  <span className="rounded-full bg-zinc-900/5 px-2 py-0.5 text-[11px] font-medium text-zinc-700 dark:bg-white/10 dark:text-zinc-200">
+                    {sessionContext.match_score}%
+                  </span>
+                )}
+              </div>
+              <div className="mt-1 line-clamp-2 text-[11px] text-zinc-500 dark:text-zinc-400">
+                {clampText(sessionContext.jd, 160)}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={clearSessionContext}
+              className="shrink-0 rounded-xl border border-zinc-200 bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-zinc-700 shadow-sm hover:bg-white dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-200 dark:hover:bg-zinc-950"
+            >
+              Clear
+            </button>
+          </div>
+        )}
       </div>
       {/* Messages */}
       <div
