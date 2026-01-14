@@ -472,7 +472,29 @@ export async function POST(request: NextRequest) {
 
     const denom = requiredCoverage.total * requiredWeight + preferredCoverage.total * preferredWeight;
     const numer = requiredCoverage.matched * requiredWeight + preferredCoverage.matched * preferredWeight;
-    const matchScore = denom === 0 ? 50 : Math.min(100, Math.round((numer / denom) * 100));
+
+    // A long JD can list dozens of niche tools (e.g., specific query engines),
+    // which makes a strict linear percentage feel unfair—especially for entry-level roles.
+    // We keep a transparent raw coverage, then apply a curve that rewards having
+    // a meaningful amount of evidence-backed overlap.
+    const rawCoverage = denom === 0 ? 0.5 : Math.max(0, Math.min(1, numer / denom));
+    const curve = isEntryLevel ? 3 : 2;
+    const adjustedCoverage = 1 - Math.pow(1 - rawCoverage, curve);
+    const matchScore = Math.min(100, Math.max(0, Math.round(adjustedCoverage * 100)));
+
+    const score_breakdown = {
+      raw_coverage_pct: Math.round(rawCoverage * 100),
+      adjusted_coverage_pct: Math.round(adjustedCoverage * 100),
+      curve,
+      is_entry_level: isEntryLevel,
+      weighted_requirements: {
+        required: { matched: requiredCoverage.matched, total: requiredCoverage.total, weight: requiredWeight },
+        preferred: { matched: preferredCoverage.matched, total: preferredCoverage.total, weight: preferredWeight },
+      },
+      explanation:
+        `Raw coverage is computed from evidence-backed requirement matches (weighted required vs preferred). ` +
+        `Final score applies a curve: adjusted = 1 - (1 - raw)^${curve}. This keeps long JDs from over-penalizing missing niche tools.`,
+    };
 
     // Find gaps (always include required gaps; include a few preferred gaps as "risks")
     const preferredGaps = preferredCoverage.gaps.filter(
@@ -528,7 +550,7 @@ export async function POST(request: NextRequest) {
       2
     );
 
-    const reportPrompt = `You are a senior technical recruiter and hiring manager.\n\nYou are writing a JD match report for the candidate:\n- Name: Charlie Cheng\n- Website: https://chengai-tianle.ai-builders.space/\n\nHard requirements:\n- English only.\n- Use the canonical name \"Charlie Cheng\" (never older variants).\n- Evidence-first: ONLY use facts that appear in the SOURCES section. Do not invent skills, companies, dates, metrics, visas, or claims.\n- If you mention a metric, copy it exactly as written in SOURCES.\n- Be useful even when evidence is sparse: if something isn't supported, say it's not specified and propose a reasonable way to validate in interview.\n- Do NOT include \"SOURCE 1\" style citations. The UI shows sources separately.\n- If gaps are listed, you MUST NOT claim the candidate \"meets all requirements\".\n\nOutput format (Markdown):\n1) Fit snapshot (1 short paragraph)\n2) Evidence-backed strengths (3–6 bullets)\n3) Requirement coverage (table with 6–10 rows: Requirement | Evidence summary | Where)\n4) Gaps / risks (bullets) + honest mitigation\n5) Suggested interview angles (2–4 bullets) — pick projects/experiences/stories from sources\n\nJob description (verbatim, may be truncated):\n${clampText(jd, 6000)}\n\nParsed JD (JSON):\n${parsedJDJson}\n\nComputed match snapshot:\n- Match score: ${matchScore}%\n- Matched skills: ${matchedSkills.slice(0, 12).map((s) => s.skill.name).join(', ') || 'n/a'}\n- Gaps: ${gaps.slice(0, 12).join(', ') || 'None'}\n- Top projects: ${relevant_projects.slice(0, 3).map((p) => p.title).join(', ') || 'n/a'}\n\nSOURCES:\n${evidenceContext}\n`;
+    const reportPrompt = `You are a senior technical recruiter and hiring manager.\n\nYou are writing a JD match report for the candidate:\n- Name: Charlie Cheng\n- Website: https://chengai-tianle.ai-builders.space/\n\nHard requirements:\n- English only.\n- Use the canonical name \"Charlie Cheng\" (never older variants).\n- Evidence-first: ONLY use facts that appear in the SOURCES section. Do not invent skills, companies, dates, metrics, visas, or claims.\n- If you mention a metric, copy it exactly as written in SOURCES.\n- Be useful even when evidence is sparse: if something isn't supported, say it's not specified and propose a reasonable way to validate in interview.\n- Do NOT include \"SOURCE 1\" style citations. The UI shows sources separately.\n- If gaps are listed, you MUST NOT claim the candidate \"meets all requirements\".\n\nOutput format (Markdown):\n1) Fit snapshot (1 short paragraph)\n2) Evidence-backed strengths (3–6 bullets)\n3) Requirement coverage (table with 6–10 rows: Requirement | Evidence summary | Where)\n4) Gaps / risks (bullets) + honest mitigation\n5) Suggested interview angles (2–4 bullets) — pick projects/experiences/stories from sources\n\nJob description (verbatim, may be truncated):\n${clampText(jd, 6000)}\n\nParsed JD (JSON):\n${parsedJDJson}\n\nComputed match snapshot:\n- Match score: ${matchScore}%\n- Score transparency: raw ${score_breakdown.raw_coverage_pct}% → adjusted ${score_breakdown.adjusted_coverage_pct}% (curve=${score_breakdown.curve}, entry-level=${score_breakdown.is_entry_level})\n- Matched skills: ${matchedSkills.slice(0, 12).map((s) => s.skill.name).join(', ') || 'n/a'}\n- Gaps: ${gaps.slice(0, 12).join(', ') || 'None'}\n- Top projects: ${relevant_projects.slice(0, 3).map((p) => p.title).join(', ') || 'n/a'}\n\nSOURCES:\n${evidenceContext}\n`;
 
     const reportSystemPrompt =
       'You write concise, persuasive hiring artifacts.\n' +
@@ -547,7 +569,7 @@ export async function POST(request: NextRequest) {
     report_markdown = cleanAssistantMarkdown(report_markdown).trim();
 
     // Generate a short summary line (used in the score card).
-    const summaryPrompt = `Write a 1–2 sentence fit summary (English) for Charlie Cheng.\n\nRules:\n- Evidence-first, do not invent facts.\n- Include the match score: ${matchScore}%.\n- If gaps exist, be honest but not pessimistic.\n\nMatched skills: ${matchedSkills.slice(0, 8).map((s) => s.skill.name).join(', ') || 'n/a'}\nTop gaps: ${gaps.slice(0, 6).join(', ') || 'None'}\n\nSOURCES:\n${evidenceContext}\n`;
+    const summaryPrompt = `Write a 1–2 sentence fit summary (English) for Charlie Cheng.\n\nRules:\n- Evidence-first, do not invent facts.\n- Include the match score: ${matchScore}%.\n- Add a short transparency phrase: raw ${score_breakdown.raw_coverage_pct}% → adjusted ${score_breakdown.adjusted_coverage_pct}% (curve=${score_breakdown.curve}).\n- If gaps exist, be honest but not pessimistic.\n\nMatched skills: ${matchedSkills.slice(0, 8).map((s) => s.skill.name).join(', ') || 'n/a'}\nTop gaps: ${gaps.slice(0, 6).join(', ') || 'None'}\n\nSOURCES:\n${evidenceContext}\n`;
     const summary = cleanAssistantMarkdown(
       (
         await generateText('You are a crisp career advisor. Respond in English.', summaryPrompt, {
@@ -558,6 +580,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       match_score: matchScore,
+      score_breakdown,
       matched_skills: matchedSkills.map(({ skill, matchedRequirement }) => ({
         skill,
         jd_requirement: matchedRequirement || '',

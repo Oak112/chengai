@@ -120,6 +120,15 @@ export default function JDMatcher() {
             <div className="text-sm opacity-80">Match Score</div>
             <div className="text-5xl font-bold">{result.match_score}%</div>
             <p className="mt-2 text-sm opacity-90 whitespace-pre-line">{result.summary}</p>
+            {result.score_breakdown && (
+              <div className="mt-3 text-xs opacity-90">
+                <div>
+                  Scoring: raw {result.score_breakdown.raw_coverage_pct}% → adjusted{' '}
+                  {result.score_breakdown.adjusted_coverage_pct}% (curve={result.score_breakdown.curve}, entry-level=
+                  {String(result.score_breakdown.is_entry_level)}).
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Match Report */}

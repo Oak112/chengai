@@ -119,6 +119,17 @@ export interface ChunkReference {
 
 export interface JDMatchResult {
   match_score: number;
+  score_breakdown?: {
+    raw_coverage_pct: number;
+    adjusted_coverage_pct: number;
+    curve: number;
+    is_entry_level: boolean;
+    weighted_requirements: {
+      required: { matched: number; total: number; weight: number };
+      preferred: { matched: number; total: number; weight: number };
+    };
+    explanation: string;
+  };
   matched_skills: SkillMatch[];
   relevant_projects: Project[];
   suggested_stories?: Story[];
