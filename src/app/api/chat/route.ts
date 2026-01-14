@@ -40,12 +40,22 @@ function detectSourceTypes(message: string): string[] | undefined {
     if (!types.includes(t)) types.push(t);
   };
 
-  if (has(/\bproject(s)?\b|\bportfolio\b/)) add('project');
+  if (
+    has(
+      /\bproject(s)?\b|\bportfolio\b|\bcase study\b|\bside project\b|\bproduct(s)?\b|\bapp(s)?\b|\bwebsite(s)?\b|\bsite(s)?\b|\bopen[- ]source\b|\boss\b|\bthings?\s+(?:you'?ve|you have|you)\s+(?:built|made)\b|\bwhat\s+(?:have you|did you)\s+(?:build|make)\b|\bwhat\s+do you\s+build\b/
+    )
+  ) {
+    add('project');
+  }
   if (has(/\barticle(s)?\b|\bblog\b|\bpost(s)?\b/)) add('article');
   if (has(/\bstory\b|\bstories\b|\bstar\b|\bbehavior(al)?\b/)) add('story');
   if (has(/\bresume\b|\bcv\b/)) add('resume');
   if (has(/\bexperience\b|\bwork\b|\bemployment\b|\bintern(ship)?\b|\bprofessional\b|\bjob\b/)) add('experience');
-  if (has(/\bskill(s)?\b/)) add('skill');
+  if (has(/\bskill(s)?\b|\btech stack\b|\bstack\b|\bproficien/)) add('skill');
+  if (types.length === 0) {
+    const inferredSkills = extractSkillsFromText(message);
+    if (inferredSkills.length > 0) add('skill');
+  }
 
   return types.length > 0 ? types : undefined;
 }
@@ -58,8 +68,25 @@ function detectChatIntent(message: string): ChatIntent {
   if (has(/\bintern(ship)?s?\b|\bintern\b|\bco-?op\b/)) return 'internships';
   if (has(/\bcover letter\b|\breferral\b|\boutreach\b|\bapplication\b|\bapply\b/)) return 'cover_letter';
   if (has(/\bjob\b|\bjd\b|\bmatch\b|\brole\b|\brecruiter\b|\bhiring\b/)) return 'job_search';
-  if (has(/\bproject(s)?\b|\bportfolio\b|\bcase study\b/)) return 'projects';
-  if (has(/\bskill(s)?\b|\btech stack\b|\bproficien/)) return 'skills';
+  if (
+    has(
+      /\bproject(s)?\b|\bportfolio\b|\bcase study\b|\bside project\b|\bproduct(s)?\b|\bapp(s)?\b|\bwebsite(s)?\b|\bopen[- ]source\b|\boss\b|\bthings?\s+(?:you'?ve|you have|you)\s+(?:built|made)\b|\bwhat\s+(?:have you|did you)\s+(?:build|make)\b|\bwhat\s+do you\s+build\b|\bthings?\s+i'?ve\s+built\b/
+    )
+  ) {
+    return 'projects';
+  }
+
+  const extractedSkills = extractSkillsFromText(message);
+  const skillMentioned = extractedSkills.length > 0;
+  const skillQuestion =
+    has(/\bskill(s)?\b|\btech stack\b|\bstack\b|\bproficien/) ||
+    (skillMentioned &&
+      has(
+        /\bhow well\b|\bhow good\b|\bexperience with\b|\bfamiliar with\b|\bdo you know\b|\bhave you used\b|\bused\b|\bworked with\b/
+      )) ||
+    (skillMentioned && m.trim().split(/\s+/).length <= 3);
+
+  if (skillQuestion) return 'skills';
 
   return 'general';
 }
@@ -168,8 +195,10 @@ function buildIntentInstruction(intent: ChatIntent): string {
       );
     case 'projects':
       return (
-        '\n\nAnswer style (projects): List 3–5 representative projects. For each: 1-line what it is + 1-line what I built/did. ' +
-        'Avoid invented metrics; keep it crisp.'
+        '\n\nAnswer style (projects): List 3–6 representative things I’ve built (apps / websites / projects). ' +
+        'If ChengAI is available in SOURCES, include it. ' +
+        'For each: 1-line what it is + 1-line what I built/did + a URL when available. ' +
+        'If asked about open-source and none is shown in SOURCES, say so plainly.'
       );
     case 'cover_letter':
       return (
@@ -188,6 +217,117 @@ function buildIntentInstruction(intent: ChatIntent): string {
     default:
       return '\n\nAnswer style: Be direct and helpful. Offer a concrete answer first, then optional next steps.';
   }
+}
+
+function countSourcesByType(sources: ChunkReference[], type: string): number {
+  return (sources || []).filter((s) => s?.source_type === type).length;
+}
+
+function hasProjectSlug(sources: ChunkReference[], slug: string): boolean {
+  return (sources || []).some((s) => s?.source_type === 'project' && s?.source_slug === slug);
+}
+
+function getCatalogAugmentationTypes(args: {
+  intent: ChatIntent;
+  sources: ChunkReference[];
+  userMessage: string;
+}): string[] {
+  const types = new Set<string>();
+
+  const hasBroadBuiltQuestion =
+    /\bthings?\s+(?:you'?ve|you have|you)\s+(?:built|made)\b|\bwhat\s+(?:have you|did you)\s+(?:build|make)\b|\bwhat\s+do you\s+build\b|\bapps?\b|\bwebsites?\b|\bopen[- ]source\b|\boss\b/i.test(
+      args.userMessage
+    );
+
+  if (args.intent === 'projects') {
+    if (countSourcesByType(args.sources, 'project') < 3) types.add('project');
+    if (hasBroadBuiltQuestion && !hasProjectSlug(args.sources, 'chengai')) types.add('project');
+    if (countSourcesByType(args.sources, 'resume') < 1) types.add('resume');
+  }
+
+  if (args.intent === 'skills') {
+    if (countSourcesByType(args.sources, 'skill') < 5) types.add('skill');
+    if (countSourcesByType(args.sources, 'resume') < 1) types.add('resume');
+  }
+
+  if (args.intent === 'internships') {
+    if (countSourcesByType(args.sources, 'experience') < 2) types.add('experience');
+    if (countSourcesByType(args.sources, 'resume') < 1) types.add('resume');
+  }
+
+  if (args.intent === 'all_resources') {
+    const needs: Array<[string, number]> = [
+      ['resume', 1],
+      ['experience', 1],
+      ['project', 2],
+      ['skill', 4],
+      ['article', 1],
+    ];
+    for (const [t, min] of needs) {
+      if (countSourcesByType(args.sources, t) < min) types.add(t);
+    }
+  }
+
+  return Array.from(types);
+}
+
+function getSourceKey(source: ChunkReference): string {
+  const slugOrTitle = source.source_slug || source.source_title || source.source_id || '';
+  return `${source.source_type || 'unknown'}:${slugOrTitle}`;
+}
+
+function mergeSources(primary: ChunkReference[], extras: ChunkReference[], limit: number): ChunkReference[] {
+  const out: ChunkReference[] = [];
+  const seen = new Set<string>();
+
+  for (const s of primary || []) {
+    const key = getSourceKey(s);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(s);
+  }
+
+  for (const s of extras || []) {
+    const key = getSourceKey(s);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(s);
+  }
+
+  return out.slice(0, Math.max(1, Math.min(limit, 16)));
+}
+
+function sortSourcesForIntent(intent: ChatIntent, sources: ChunkReference[]): ChunkReference[] {
+  const orderByIntent: Record<ChatIntent, string[]> = {
+    projects: ['project', 'article', 'resume', 'experience', 'skill', 'story'],
+    skills: ['skill', 'experience', 'project', 'resume', 'article', 'story'],
+    internships: ['experience', 'resume', 'story', 'project', 'skill', 'article'],
+    cover_letter: ['resume', 'experience', 'project', 'story', 'skill', 'article'],
+    job_search: ['resume', 'experience', 'project', 'skill', 'article', 'story'],
+    all_resources: ['resume', 'experience', 'project', 'skill', 'article', 'story'],
+    general: ['resume', 'project', 'experience', 'skill', 'article', 'story'],
+  };
+
+  const order = orderByIntent[intent] || [];
+  const idx = (t: string) => {
+    const i = order.indexOf(t);
+    return i === -1 ? 999 : i;
+  };
+
+  const cloned = [...(sources || [])];
+  cloned.sort((a, b) => {
+    const diff = idx(a.source_type) - idx(b.source_type);
+    if (diff !== 0) return diff;
+    // Within projects, keep ChengAI near the front for “what have you built” style questions.
+    if (intent === 'projects' && a.source_type === 'project' && b.source_type === 'project') {
+      const aIsChengai = a.source_slug === 'chengai';
+      const bIsChengai = b.source_slug === 'chengai';
+      if (aIsChengai !== bIsChengai) return aIsChengai ? -1 : 1;
+    }
+    return (b.relevance_score || 0) - (a.relevance_score || 0);
+  });
+
+  return cloned;
 }
 
 function dedupeSourcesForUi(sources: ChunkReference[]): ChunkReference[] {
@@ -262,10 +402,12 @@ async function getCatalogFallbackSources(sourceTypes?: string[]): Promise<ChunkR
       ? sourceTypes
       : ['project', 'article', 'skill', 'resume', 'experience']) as string[]
   );
-  const sources: ChunkReference[] = [];
+  const groups: Record<string, ChunkReference[]> = {};
 
   const push = (item: Omit<ChunkReference, 'relevance_score' | 'chunk_id'> & { chunk_id: string }) => {
-    sources.push({
+    const type = item.source_type || 'unknown';
+    if (!groups[type]) groups[type] = [];
+    groups[type].push({
       ...item,
       relevance_score: 0.02,
     });
@@ -294,7 +436,24 @@ async function getCatalogFallbackSources(sourceTypes?: string[]): Promise<ChunkR
       .order('display_order', { ascending: true })
       .limit(4);
 
-    for (const p of (data as Project[] | null) || []) {
+    const rows = ((data as Project[] | null) || []).slice();
+    const needsChengai = !rows.some((p) => p.slug === 'chengai');
+    if (needsChengai) {
+      const { data: chengai } = await supabaseAdmin
+        .from('projects')
+        .select('id, title, slug, subtitle, description, tech_stack, repo_url, demo_url, article_url, is_featured')
+        .eq('owner_id', DEFAULT_OWNER_ID)
+        .eq('status', 'published')
+        .eq('slug', 'chengai')
+        .is('deleted_at', null)
+        .maybeSingle();
+
+      if (chengai && !rows.some((p) => p.id === (chengai as Project).id)) {
+        rows.unshift(chengai as Project);
+      }
+    }
+
+    for (const p of rows) {
       const tech = Array.isArray(p.tech_stack) && p.tech_stack.length > 0 ? `Tech: ${p.tech_stack.join(', ')}\n` : '';
       const featured = p.is_featured ? 'Featured: true\n' : '';
       const links = [
@@ -423,7 +582,42 @@ async function getCatalogFallbackSources(sourceTypes?: string[]): Promise<ChunkR
     }
   }
 
-  return sources.slice(0, 8);
+  const MAX_SOURCES = 8;
+  const caps: Record<string, number> = {
+    resume: 1,
+    project: 3,
+    experience: 2,
+    skill: 4,
+    article: 2,
+    story: 2,
+  };
+  const typeOrder = ['resume', 'project', 'experience', 'skill', 'article', 'story'];
+
+  const selected: ChunkReference[] = [];
+  const used: Record<string, number> = {};
+
+  // Round-robin across requested types so we keep coverage (instead of returning 8 projects/articles only).
+  while (selected.length < MAX_SOURCES) {
+    let madeProgress = false;
+
+    for (const t of typeOrder) {
+      if (selected.length >= MAX_SOURCES) break;
+      const cap = caps[t] ?? 2;
+      if ((used[t] || 0) >= cap) continue;
+      const bucket = groups[t];
+      if (!bucket || bucket.length === 0) continue;
+
+      const next = bucket.shift();
+      if (!next) continue;
+      selected.push(next);
+      used[t] = (used[t] || 0) + 1;
+      madeProgress = true;
+    }
+
+    if (!madeProgress) break;
+  }
+
+  return selected;
 }
 
 export async function POST(request: NextRequest) {
@@ -467,9 +661,28 @@ export async function POST(request: NextRequest) {
     // If RAG returns nothing (common when content exists but embeddings haven't been built yet),
     // fall back to a small “catalog” of published content so the assistant can still list things.
     const isFallbackCatalog = !sources || sources.length === 0;
+    let isCatalogAugmented = false;
     if (!sources || sources.length === 0) {
       sources = await getCatalogFallbackSources(retrievalConfig.sourceTypes);
+      sources = sortSourcesForIntent(retrievalConfig.intent, sources);
       context = formatContextFromSources(sources);
+    } else {
+      const augmentationTypes = getCatalogAugmentationTypes({
+        intent: retrievalConfig.intent,
+        sources,
+        userMessage: message,
+      });
+
+      if (augmentationTypes.length > 0) {
+        const extra = await getCatalogFallbackSources(augmentationTypes);
+        const merged = mergeSources(sources, extra, 12);
+        sources = sortSourcesForIntent(retrievalConfig.intent, merged);
+        context = formatContextFromSources(sources);
+        isCatalogAugmented = true;
+      } else {
+        sources = sortSourcesForIntent(retrievalConfig.intent, sources);
+        context = formatContextFromSources(sources);
+      }
     }
 
     const hasEvidence = Array.isArray(sources) && sources.length > 0;
@@ -484,8 +697,8 @@ export async function POST(request: NextRequest) {
 
     const augmentedSystemPrompt = hasEvidence
       ? `${CHAT_SYSTEM_PROMPT}${
-          isFallbackCatalog
-            ? '\n\nImportant: the SOURCES below may be a high-level catalog of available items, not necessarily direct evidence for the user’s exact question. Only claim what is explicitly supported by the snippets. If details are missing, say so and point to the most relevant sources to read next.'
+          isFallbackCatalog || isCatalogAugmented
+            ? '\n\nImportant: some SOURCES may be high-level catalog items (titles, summaries, and links), not verbatim evidence for every detail. Only claim what is explicitly supported by the snippets. If details are missing, say so and point to the most relevant pages to read next.'
             : ''
         }`
       : `${CHAT_SYSTEM_PROMPT}\n\nImportant: no directly relevant sources were retrieved for this question. State that clearly and suggest the most relevant pages to check (projects / articles / skills), or ask the user to provide more context.`;
