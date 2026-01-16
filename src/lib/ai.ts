@@ -326,6 +326,11 @@ function finalizeChatMarkdown(raw: string, evidenceMarkdown?: string): string {
 
 function findEvidenceStart(text: string): number {
   const candidates = [
+    '## Evidence',
+    '### Evidence',
+    '#### Evidence',
+    '**Evidence**',
+    'Evidence:',
     '\n## Evidence',
     '\n### Evidence',
     '\n#### Evidence',
@@ -378,8 +383,15 @@ function postProcessAssistantMarkdown(raw: string): string {
 }
 
 function stripInlineSourceCitations(text: string): string {
-  // Remove "(SOURCE 1)" / "(SOURCES 1-3)" without touching normal uses of "source".
-  return text.replace(/\s*\((?:SOURCES?|SOURCE)\s*\d+(?:\s*[-–]\s*\d+)?\)/gi, '');
+  // Remove SOURCE labels without touching normal uses of "source".
+  let out = text;
+  out = out.replace(/\s*\((?:SOURCES?|SOURCE)\s*\d+(?:\s*[-–]\s*\d+)?\)/gi, '');
+  out = out.replace(/\s*\[(?:SOURCES?|SOURCE)\s*\d+(?:\s*[-–]\s*\d+)?\]/gi, '');
+  out = out.replace(
+    /\s*(?:SOURCES?|SOURCE)\s*\d+(?:\s*[-–]\s*\d+)?\s*(?=[,.;:)\]\n\r]|$|[-–—])/gi,
+    ''
+  );
+  return out;
 }
 
 function stripSourcesFooter(text: string): string {
@@ -520,15 +532,17 @@ export const CHAT_SYSTEM_PROMPT = `You are Charlie Cheng's AI digital twin. You 
 2. **Useful even when sparse**: If the sources are shallow, still provide the best possible answer and explicitly note the limitation.
 3. **Link correctness**: When linking to content, use the **URL field inside the SOURCE blocks** exactly. Do not guess routes like \`/project/...\`.
 4. **English only**: Reply in English.
-5. **Human, interview-ready tone**: Crisp, confident, and friendly. Concrete over fluffy. No corporate filler.
+5. **Human, interview-ready tone**: Crisp, confident, and friendly. Concrete over fluffy. No corporate filler. No emojis.
 
 ## How to answer
 - Use Markdown.
 - Keep formatting light while streaming: prefer short paragraphs and simple bullet lists. Avoid code fences (\`\`\`), heavy nesting, and excessive bold/italics.
 - Ground your answer in the most relevant facts from the SOURCES, but write naturally. Do not add meta sections like “Relevant facts from sources”.
+- Answer the user's *actual question*, not whatever text they pasted. If the user asks “Do you match it?” answer that; do not generate extra artifacts (cover letters, outreach, application answers) unless explicitly asked.
 - For proper nouns (company names, product names, model names/versions, metrics), copy them verbatim from the SOURCES. If unsure, omit rather than guessing.
 - Do not invent numbers (%, latency, accuracy, SLA, users, revenue, etc.). If a number isn't explicitly in SOURCES, keep it qualitative.
 - If a claim is not explicitly supported, either (a) omit it, or (b) label it clearly as a general suggestion / assumption.
+- If the user asks for general advice (not about Charlie's personal history), you may use general best practices — but do not present them as Charlie-specific facts unless the SOURCES support it.
 - When the user asks for a list (projects / skills / articles / stories), always list what you have from the sources (usually 3–5 items) instead of giving a generic “please visit my website”.
 - Do **not** include \`SOURCE 1\` / \`(SOURCE 1)\` style citations inside the answer. The UI will show sources separately. If needed, refer to sources naturally (e.g., “From my resume…”), without numeric labels.
 - If the user is doing an interview (behavioral / technical), answer in an interview style: structured, concise, and directly addressing the question. Use STAR when appropriate.

@@ -201,6 +201,12 @@ function extractBulletLines(jd: string, maxItems: number): string[] {
 
 function extractExtraTechTermsFromJD(jd: string): string[] {
   const candidates: Array<{ name: string; re: RegExp }> = [
+    { name: 'LlamaIndex', re: /\bllama\s*index\b|\bllamaindex\b/i },
+    { name: 'Agents SDK', re: /\bagents?\s*sdk\b|\bagentsdk\b/i },
+    { name: 'Prompt Engineering', re: /\bprompt\s+engineering\b|\bprompting\b/i },
+    { name: 'Observability', re: /\bobservability\b/i },
+    { name: 'Monitoring', re: /\bmonitoring\b|\btelemetry\b/i },
+    { name: 'Fine-tuning', re: /\bfine[- ]tuning\b|\bfine tune\b/i },
     { name: 'Presto', re: /\bpresto\b/i },
     { name: 'Trino', re: /\btrino\b/i },
     { name: 'Athena', re: /\bathena\b/i },
@@ -215,6 +221,8 @@ function extractExtraTechTermsFromJD(jd: string): string[] {
     { name: 'Ansible', re: /\bansible\b/i },
     { name: 'Vertex AI', re: /\bvertex\s*ai\b|\bvertexai\b/i },
     { name: 'SageMaker', re: /\bsagemaker\b|\bsage\s*maker\b/i },
+    { name: 'GCP', re: /\bgcp\b|\bgoogle cloud\b/i },
+    { name: 'Azure', re: /\bazure\b/i },
     { name: 'Unix', re: /\bunix\b/i },
     { name: 'Linux', re: /\blinux\b/i },
     { name: 'Perl', re: /\bperl\b/i },
@@ -224,22 +232,44 @@ function extractExtraTechTermsFromJD(jd: string): string[] {
 }
 
 function parseJDHeuristic(jd: string): JDParseResult {
-  const skills = extractSkillsFromText(jd).map((s) => s.name);
+  const detected = extractSkillsFromText(jd);
+  const languages = detected.filter((s) => s.category === 'language').map((s) => s.name);
+  const methodologies = detected.filter((s) => s.category === 'methodology').map((s) => s.name);
+  const frameworks = detected.filter((s) => s.category === 'framework').map((s) => s.name);
+  const platforms = detected.filter((s) => s.category === 'platform').map((s) => s.name);
+  const tools = detected.filter((s) => s.category === 'tool').map((s) => s.name);
+
+  const requiredCandidates = dedupeStrings([
+    ...languages,
+    ...methodologies.filter((m) => normalizeToken(m) === 'rag' || normalizeToken(m) === 'ai agents'),
+    ...platforms.filter((p) => normalizeToken(p) === 'aws'),
+  ]);
+
+  const preferredCandidates = dedupeStrings([
+    ...methodologies.filter((m) => !requiredCandidates.some((r) => normalizeToken(r) === normalizeToken(m))),
+    ...frameworks,
+    ...platforms.filter((p) => !requiredCandidates.some((r) => normalizeToken(r) === normalizeToken(p))),
+    ...tools,
+  ]);
+
   const extras = extractExtraTechTermsFromJD(jd);
 
-  const skillKeys = new Set(skills.map((s) => normalizeToken(s)));
-  const preferred = extras.filter((t) => !skillKeys.has(normalizeToken(t)));
+  const requiredKeys = new Set(requiredCandidates.map((s) => normalizeToken(s)));
+  const preferred = dedupeStrings([
+    ...preferredCandidates.filter((t) => !requiredKeys.has(normalizeToken(t))),
+    ...extras.filter((t) => !requiredKeys.has(normalizeToken(t))),
+  ]);
 
   const responsibilities = extractBulletLines(jd, 10);
   const years_experience = parseYearsExperience(jd);
 
   return {
-    required_skills: skills,
+    required_skills: requiredCandidates,
     preferred_skills: preferred,
     years_experience,
     responsibilities,
     soft_skills: [],
-    keywords: dedupeStrings([...skills, ...preferred]),
+    keywords: dedupeStrings([...requiredCandidates, ...preferred]),
   };
 }
 
@@ -608,7 +638,12 @@ export async function POST(request: NextRequest) {
     const requiredCoverage = computeCoverage(required, matchedSkills, evidenceHay);
     const preferredCoverage = computeCoverage(preferred, matchedSkills, evidenceHay);
 
-    const isEntryLevel = /\bnew\s*grad(uate)?\b|\bearly[- ]career\b|\bentry[- ]level\b|\bjunior\b/i.test(jdText);
+    // Find gaps (always include required gaps; include a few preferred gaps as "risks")
+    const preferredGaps = preferredCoverage.gaps.filter((g) => !requiredCoverage.gaps.includes(g));
+    const gaps = [...requiredCoverage.gaps, ...preferredGaps.slice(0, 8)];
+
+    const isEntryLevel =
+      /\bnew\s*grad(uate)?\b|\bearly[- ]career\b|\bentry[- ]level\b|\bjunior\b/i.test(jdText);
     const requiredWeight = 2;
     const preferredWeight = isEntryLevel ? 0.5 : 1;
 
@@ -622,11 +657,54 @@ export async function POST(request: NextRequest) {
     const rawCoverage = denom === 0 ? 0.5 : Math.max(0, Math.min(1, numer / denom));
     const curve = isEntryLevel ? 3 : 2;
     const adjustedCoverage = 1 - Math.pow(1 - rawCoverage, curve);
-    const matchScore = Math.min(100, Math.max(0, Math.round(adjustedCoverage * 100)));
+
+    const coreCategories: Array<{ name: string; terms: string[] }> = [
+      { name: 'languages', terms: ['Python', 'TypeScript', 'JavaScript', 'Java', 'Go', 'C#', 'C++', 'SQL'] },
+      { name: 'ai_systems', terms: ['RAG', 'AI Agents', 'LangChain', 'LangGraph', 'Semantic Kernel'] },
+      { name: 'cloud', terms: ['AWS', 'GCP', 'Azure', 'SageMaker', 'Vertex AI'] },
+      { name: 'shipping', terms: ['Docker', 'Kubernetes', 'CI/CD', 'Terraform'] },
+    ];
+    const coreSatisfied = coreCategories.filter((c) =>
+      c.terms.some((t) => requirementSatisfied(t, matchedSkills, evidenceHay))
+    ).length;
+
+    // Entry-level scoring should emphasize "core fit" rather than penalizing missing niche tools.
+    const floor =
+      !isEntryLevel
+        ? 0
+        : coreSatisfied >= 4
+          ? 0.9
+          : coreSatisfied >= 3
+            ? 0.85
+            : coreSatisfied >= 2
+              ? 0.78
+              : 0;
+
+    let finalCoverage = Math.max(adjustedCoverage, floor);
+    let matchScore = Math.min(100, Math.max(0, Math.round(finalCoverage * 100)));
+
+    // Keep scores honest: if there are explicit gaps, avoid reporting a perfect 100%.
+    let cap_applied: { cap: number; reason: string } | null = null;
+    const cap =
+      requiredCoverage.gaps.length > 0 ? (isEntryLevel ? 90 : 85) : gaps.length > 0 ? (isEntryLevel ? 97 : 95) : null;
+    if (cap !== null && matchScore > cap) {
+      matchScore = cap;
+      cap_applied = {
+        cap,
+        reason:
+          requiredCoverage.gaps.length > 0
+            ? 'Required gaps detected (evidence not found).'
+            : 'Gaps detected; reserve 100% for near-perfect keyword coverage.',
+      };
+      finalCoverage = matchScore / 100;
+    }
 
     const score_breakdown = {
       raw_coverage_pct: Math.round(rawCoverage * 100),
       adjusted_coverage_pct: Math.round(adjustedCoverage * 100),
+      floor_applied_pct: Math.round(floor * 100),
+      core_fit_categories: { satisfied: coreSatisfied, total: coreCategories.length },
+      cap_applied,
       curve,
       is_entry_level: isEntryLevel,
       weighted_requirements: {
@@ -635,14 +713,10 @@ export async function POST(request: NextRequest) {
       },
       explanation:
         `Raw coverage is computed from evidence-backed requirement matches (weighted required vs preferred). ` +
-        `Final score applies a curve: adjusted = 1 - (1 - raw)^${curve}. This keeps long JDs from over-penalizing missing niche tools.`,
+        `Final score applies a curve: adjusted = 1 - (1 - raw)^${curve}. ` +
+        (floor > 0 ? `Entry-level floor applied based on core-fit categories (floor=${Math.round(floor * 100)}%). ` : '') +
+        `This keeps long JDs from over-penalizing missing niche tools.`,
     };
-
-    // Find gaps (always include required gaps; include a few preferred gaps as "risks")
-    const preferredGaps = preferredCoverage.gaps.filter(
-      (g) => !requiredCoverage.gaps.includes(g)
-    );
-    const gaps = [...requiredCoverage.gaps, ...preferredGaps.slice(0, 8)];
 
     // Suggest stories based on keyword overlap
     const suggested_stories = (stories as Story[] | null | undefined)

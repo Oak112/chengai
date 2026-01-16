@@ -233,8 +233,10 @@ function buildIntentInstruction(intent: ChatIntent): string {
     case 'job_search':
       return (
         '\n\nAnswer style (job match): Answer the direct question first (fit/match), then support it with evidence. ' +
+        'If the user asked a yes/no question (e.g., “Do you match it?”), answer yes/no in the first sentence. ' +
         'Keep it concise: 1 short fit paragraph + 4–8 bullets (strengths + gaps) + 1 suggested next step. ' +
-        'Do NOT draft a cover letter, resume tailoring plan, or application answers unless the user explicitly asks.'
+        'Do NOT draft a cover letter, resume tailoring plan, or application answers unless the user explicitly asks. ' +
+        'At most, offer a single follow-up like: “Want me to draft a cover letter or outreach note based on this JD?”'
       );
     case 'all_resources':
       return (
