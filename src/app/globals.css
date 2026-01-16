@@ -3,12 +3,16 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0b1220;
+  --ring: rgba(37, 99, 235, 0.55);
+  --glow-blue: rgba(37, 99, 235, 0.12);
+  --glow-purple: rgba(147, 51, 234, 0.1);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -17,11 +21,17 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --ring: rgba(59, 130, 246, 0.5);
+    --glow-blue: rgba(59, 130, 246, 0.1);
+    --glow-purple: rgba(168, 85, 247, 0.08);
   }
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(1200px circle at 20% -10%, var(--glow-blue), transparent 60%),
+    radial-gradient(1000px circle at 90% 0%, var(--glow-purple), transparent 55%),
+    var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
@@ -54,15 +64,19 @@ body {
   }
 }
 
-/* Smooth transitions */
-* {
-  transition-property: color, background-color, border-color;
+/* Smooth transitions (interactive elements only) */
+a,
+button,
+input,
+textarea,
+select {
+  transition-property: color, background-color, border-color, box-shadow, transform;
   transition-duration: 150ms;
   transition-timing-function: ease;
 }
 
 /* Focus styles */
 :focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }

@@ -90,15 +90,15 @@ export default function Home() {
                 href={{
                   pathname: '/chat',
                   query: {
-                    q: 'Mock interview (behavioral): answer in STAR, then ask me one follow-up question.',
+                    q: 'Mock interview (behavioral): answer like a real interview (hook -> context -> actions -> outcomes -> takeaway), then ask me one follow-up question.',
                     mode: 'behavior',
                   },
                 }}
                 event="shortcut_click"
-                meta={{ shortcut: 'mock_interview_star', page: 'home' }}
+                meta={{ shortcut: 'mock_interview_behavioral', page: 'home' }}
                 className="rounded-full border border-zinc-200 bg-white/70 px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:bg-white dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-200 dark:hover:bg-zinc-950"
               >
-                Mock interview (STAR)
+                Mock interview (behavioral)
               </TrackedLink>
               <TrackedLink
                 href={{

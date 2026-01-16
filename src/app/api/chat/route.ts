@@ -737,7 +737,7 @@ export async function POST(request: NextRequest) {
 
     const modeInstruction =
       mode === 'behavior'
-        ? '\n\nMode: behavior. Use STAR (Situation / Task / Action / Result). Prefer stories, but you may also use resume/experience sources when relevant.'
+        ? '\n\nMode: behavioral interview. Answer like a real interview: start with a short hook (why this mattered), then give just enough context, what you did (decisions + actions), and the outcome (metrics if available). Close with a brief generalization (what you learned / how you’d apply it again). Do NOT label sections as “Situation/Task/Action/Result” unless the user explicitly asks for STAR formatting. Prefer stories, but you may also use resume/experience sources when relevant.'
         : mode === 'tech'
           ? '\n\nMode: tech deep dive. Prioritize concrete technical details, trade-offs, and verifiable facts. Use the provided SOURCES (projects / resume / experience / articles) and clearly separate facts from assumptions.'
           : '';

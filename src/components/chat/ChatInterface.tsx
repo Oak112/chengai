@@ -330,7 +330,8 @@ export default function ChatInterface({ initialMessage, initialMode, startFresh 
                 Charlie&apos;s AI
               </div>
               <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                Evidence-first • RAG-powered • {mode === 'auto' ? 'Auto' : mode}
+                Evidence-first • RAG-powered •{' '}
+                {mode === 'auto' ? 'Auto' : mode === 'tech' ? 'Tech deep dive' : 'Behavioral'}
               </div>
             </div>
           </Link>
@@ -349,7 +350,7 @@ export default function ChatInterface({ initialMessage, initialMode, startFresh 
           >
               <option value="auto">Auto</option>
               <option value="tech">Tech deep dive</option>
-              <option value="behavior">Behavioral (STAR)</option>
+              <option value="behavior">Behavioral</option>
             </select>
 
             <button

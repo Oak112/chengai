@@ -140,12 +140,19 @@ export default function JDMatcher() {
             <div className="text-5xl font-bold">{result.match_score}%</div>
             <p className="mt-2 text-sm opacity-90 whitespace-pre-line">{result.summary}</p>
             {result.score_breakdown && (
-              <div className="mt-3 text-xs opacity-90">
-                <div>
-                  Scoring: raw {result.score_breakdown.raw_coverage_pct}% → adjusted{' '}
-                  {result.score_breakdown.adjusted_coverage_pct}% (curve={result.score_breakdown.curve}, entry-level=
-                  {String(result.score_breakdown.is_entry_level)}).
-                </div>
+              <div className="mt-4 flex flex-wrap gap-2 text-xs text-white/90">
+                <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-1">
+                  Coverage: {result.score_breakdown.raw_coverage_pct}%
+                </span>
+                <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-1">
+                  Adjusted: {result.score_breakdown.adjusted_coverage_pct}%
+                </span>
+                <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-1">
+                  Curve: {result.score_breakdown.curve}
+                </span>
+                <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-1">
+                  Entry-level: {result.score_breakdown.is_entry_level ? 'yes' : 'no'}
+                </span>
               </div>
             )}
           </div>
@@ -246,7 +253,7 @@ export default function JDMatcher() {
                   <Link
                     key={project.id}
                     href={`/projects/${project.slug}`}
-                    className="block rounded-lg p-3 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    className="block rounded-lg p-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800"
                   >
                     <div className="font-medium text-zinc-900 dark:text-white">
                       {project.title}
@@ -312,14 +319,14 @@ export default function JDMatcher() {
                   // ignore
                 }
               }}
-              className="flex-1 rounded-xl bg-blue-600 py-3 text-center text-sm font-medium text-white hover:bg-blue-700"
+              className="flex-1 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 py-3 text-center text-sm font-semibold text-white shadow-sm hover:brightness-110"
             >
               Ask AI More Questions
             </Link>
             <Link
               href="/projects"
               onClick={() => trackEvent('jd_match_cta_click', { cta: 'projects' })}
-              className="flex-1 rounded-xl border border-zinc-200 py-3 text-center text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="flex-1 rounded-xl border border-zinc-200 bg-white/70 py-3 text-center text-sm font-semibold text-zinc-700 shadow-sm hover:bg-white dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-200 dark:hover:bg-zinc-950"
             >
               View All Projects
             </Link>
