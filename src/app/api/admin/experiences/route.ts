@@ -16,6 +16,10 @@ function migrationHint() {
   return 'Experiences table is not set up yet. Run `database/migrations/20260112_add_experiences.sql` in Supabase SQL Editor, then retry.';
 }
 
+function detailsMigrationHint() {
+  return 'Experience details are not enabled in your database yet. Run `database/migrations/20260117_add_project_experience_details.sql` in Supabase SQL Editor, then retry.';
+}
+
 type ExperiencePayload = {
   id?: string;
   company: string;
@@ -51,7 +55,26 @@ export async function GET() {
       }
       throw error;
     }
-    return NextResponse.json(data || []);
+
+    let detailsSupported = false;
+    if (Array.isArray(data) && data.length > 0) {
+      detailsSupported = Object.prototype.hasOwnProperty.call(data[0] as Record<string, unknown>, 'details');
+    } else {
+      const probe = await supabaseAdmin
+        .from('experiences')
+        .select('id, details')
+        .eq('owner_id', DEFAULT_OWNER_ID)
+        .limit(1);
+      if (probe.error?.code !== 'PGRST204' && probe.error?.code !== '42703') {
+        detailsSupported = true;
+      }
+    }
+
+    return NextResponse.json(data || [], {
+      headers: {
+        'x-chengai-experience-details-supported': detailsSupported ? 'true' : 'false',
+      },
+    });
   } catch (error) {
     console.error('Admin experiences GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -73,6 +96,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Company and role are required' }, { status: 400 });
     }
 
+    const detailsText = typeof body.details === 'string' ? body.details.trim() : null;
+
     const payload = {
       owner_id: DEFAULT_OWNER_ID,
       company,
@@ -82,7 +107,7 @@ export async function POST(request: NextRequest) {
       start_date: body.start_date ? String(body.start_date) : null,
       end_date: body.end_date ? String(body.end_date) : null,
       summary: body.summary ? String(body.summary).trim() : null,
-      details: body.details ? String(body.details).trim() : null,
+      ...(detailsText ? { details: detailsText } : {}),
       highlights: Array.isArray(body.highlights) ? body.highlights : [],
       tech_stack: Array.isArray(body.tech_stack) ? body.tech_stack : [],
       status: typeof body.status === 'string' ? body.status : 'published',
@@ -96,6 +121,9 @@ export async function POST(request: NextRequest) {
 
     // Backward compatibility: details column may not exist yet.
     if ((error?.code === '42703' || error?.code === 'PGRST204') && typeof payload.details !== 'undefined') {
+      if (typeof payload.details === 'string' && payload.details.length > 0) {
+        return NextResponse.json({ error: detailsMigrationHint() }, { status: 501 });
+      }
       delete (payload as Partial<typeof payload>).details;
       const retry = await supabaseAdmin.from('experiences').insert(payload).select().single();
       data = retry.data;
@@ -144,6 +172,8 @@ export async function PUT(request: NextRequest) {
     if (typeof updates.summary === 'string') updates.summary = updates.summary.trim();
     if (typeof updates.details === 'string') updates.details = updates.details.trim() || null;
 
+    const detailsHasContent = typeof updates.details === 'string' && updates.details.length > 0;
+
     if (updates.highlights && !Array.isArray(updates.highlights)) updates.highlights = [];
     if (updates.tech_stack && !Array.isArray(updates.tech_stack)) updates.tech_stack = [];
 
@@ -159,6 +189,9 @@ export async function PUT(request: NextRequest) {
 
     // Backward compatibility: details column may not exist yet.
     if ((error?.code === '42703' || error?.code === 'PGRST204') && typeof updates.details !== 'undefined') {
+      if (detailsHasContent) {
+        return NextResponse.json({ error: detailsMigrationHint() }, { status: 501 });
+      }
       delete updates.details;
       const retry = await supabaseAdmin
         .from('experiences')

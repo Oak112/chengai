@@ -50,6 +50,7 @@ export default function AdminProjectsPage() {
   const [draft, setDraft] = useState<ProjectDraft>(emptyDraft);
   const [isSaving, setIsSaving] = useState(false);
   const [slugTouched, setSlugTouched] = useState(false);
+  const [detailsSupported, setDetailsSupported] = useState<boolean | null>(null);
 
   const csrfToken = useMemo(() => getCookieValue('chengai_csrf'), []);
 
@@ -60,7 +61,9 @@ export default function AdminProjectsPage() {
   const fetchProjects = async () => {
     try {
       const response = await fetch('/api/admin/projects');
-      const data = await response.json();
+      const supportedHeader = response.headers.get('x-chengai-project-details-supported');
+      setDetailsSupported(supportedHeader === null ? null : supportedHeader === 'true');
+      const data = await response.json().catch(() => null);
       setProjects(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching projects:', error);
@@ -223,6 +226,16 @@ export default function AdminProjectsPage() {
         </button>
       </div>
 
+      {detailsSupported === false && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/30 dark:bg-amber-900/20 dark:text-amber-100">
+          Long-form project details are disabled because your database hasn&apos;t been migrated yet. Run{' '}
+          <code className="rounded bg-amber-100 px-1.5 py-0.5 text-[13px] dark:bg-amber-950/40">
+            database/migrations/20260117_add_project_experience_details.sql
+          </code>{' '}
+          in Supabase SQL Editor, then refresh this page.
+        </div>
+      )}
+
       {projects.length === 0 ? (
         <div className="text-center py-12 border-2 border-dashed border-zinc-200 rounded-xl dark:border-zinc-700">
           <p className="text-zinc-500 dark:text-zinc-400">
@@ -336,11 +349,21 @@ export default function AdminProjectsPage() {
                 placeholder="Description (required)"
                 className="w-full min-h-[140px] rounded-xl border border-zinc-200 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
               />
+              {detailsSupported === false && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/30 dark:bg-amber-900/20 dark:text-amber-100">
+                  This field requires a database migration. Run{' '}
+                  <code className="rounded bg-amber-100 px-1.5 py-0.5 text-[13px] dark:bg-amber-950/40">
+                    database/migrations/20260117_add_project_experience_details.sql
+                  </code>{' '}
+                  in Supabase SQL Editor, then refresh.
+                </div>
+              )}
               <textarea
                 value={draft.details}
                 onChange={(e) => setDraft((d) => ({ ...d, details: e.target.value }))}
                 placeholder="Detailed narrative (optional, Markdown). Used for deep-dive interview Q&A and indexed for RAG."
-                className="w-full min-h-[220px] rounded-xl border border-zinc-200 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                disabled={detailsSupported === false}
+                className="w-full min-h-[220px] rounded-xl border border-zinc-200 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
               />
               <div className="grid gap-3 sm:grid-cols-3">
                 <input

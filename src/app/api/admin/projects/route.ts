@@ -5,6 +5,10 @@ import { slugify } from '@/lib/slug';
 
 export const runtime = 'nodejs';
 
+function detailsMigrationHint() {
+  return 'Project details are not enabled in your database yet. Run `database/migrations/20260117_add_project_experience_details.sql` in Supabase SQL Editor, then retry.';
+}
+
 async function insertProjectWithAutoSlug(input: {
   title: string;
   slug?: string;
@@ -30,7 +34,7 @@ async function insertProjectWithAutoSlug(input: {
         title: input.title,
         slug,
         description: input.description,
-        ...(omitDetails ? {} : { details: input.details }),
+        ...(omitDetails || input.details === null ? {} : { details: input.details }),
         subtitle: input.subtitle,
         repo_url: input.repo_url,
         demo_url: input.demo_url,
@@ -48,6 +52,12 @@ async function insertProjectWithAutoSlug(input: {
 
   // Backward compatibility: details column may not exist yet.
   if (error?.code === '42703' || error?.code === 'PGRST204') {
+    if (typeof input.details === 'string') {
+      return {
+        data: null,
+        error: { code: 'DETAILS_NOT_SUPPORTED', message: detailsMigrationHint() } as const,
+      };
+    }
     omitDetails = true;
     ({ data, error } = await attemptInsert(baseSlug, omitDetails));
   }
@@ -101,7 +111,25 @@ export async function GET() {
 
     if (error) throw error;
 
-    return NextResponse.json(data);
+    let detailsSupported = false;
+    if (Array.isArray(data) && data.length > 0) {
+      detailsSupported = Object.prototype.hasOwnProperty.call(data[0] as Record<string, unknown>, 'details');
+    } else {
+      const probe = await supabaseAdmin
+        .from('projects')
+        .select('id, details')
+        .eq('owner_id', DEFAULT_OWNER_ID)
+        .limit(1);
+      if (probe.error?.code !== 'PGRST204' && probe.error?.code !== '42703') {
+        detailsSupported = true;
+      }
+    }
+
+    return NextResponse.json(data, {
+      headers: {
+        'x-chengai-project-details-supported': detailsSupported ? 'true' : 'false',
+      },
+    });
   } catch (error) {
     console.error('Admin projects GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -157,6 +185,9 @@ export async function POST(request: NextRequest) {
       if (error.code === '23505') {
         return NextResponse.json({ error: error.message }, { status: 409 });
       }
+      if (error.code === 'DETAILS_NOT_SUPPORTED') {
+        return NextResponse.json({ error: error.message }, { status: 501 });
+      }
       throw new Error(error.message);
     }
 
@@ -197,6 +228,8 @@ export async function PUT(request: NextRequest) {
       updates.details = updates.details.trim() || null;
     }
 
+    const detailsHasContent = typeof updates.details === 'string' && updates.details.length > 0;
+
     updates.updated_at = new Date().toISOString();
 
     if (typeof updates.slug === 'string') {
@@ -233,6 +266,9 @@ export async function PUT(request: NextRequest) {
       (error.code === '42703' || error.code === 'PGRST204') &&
       typeof updates.details !== 'undefined'
     ) {
+      if (detailsHasContent) {
+        return NextResponse.json({ error: detailsMigrationHint() }, { status: 501 });
+      }
       // Backward compatibility: details column may not exist yet.
       delete updates.details;
       const retry = await supabaseAdmin
