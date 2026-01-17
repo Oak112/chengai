@@ -1,5 +1,7 @@
 import { supabase, DEFAULT_OWNER_ID } from '@/lib/supabase';
 import type { Experience } from '@/types';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export const metadata = {
   title: 'Experience | Charlie Cheng',
@@ -89,6 +91,17 @@ export default async function ExperiencePage() {
                 </ul>
               )}
 
+              {exp.details && (
+                <details className="mt-5 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950/20">
+                  <summary className="cursor-pointer select-none text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                    Deep dive
+                  </summary>
+                  <div className="mt-3 prose prose-zinc dark:prose-invert max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{exp.details}</ReactMarkdown>
+                  </div>
+                </details>
+              )}
+
               {Array.isArray(exp.tech_stack) && exp.tech_stack.length > 0 && (
                 <div className="mt-5 flex flex-wrap gap-2">
                   {exp.tech_stack.map((t) => (
@@ -108,4 +121,3 @@ export default async function ExperiencePage() {
     </div>
   );
 }
-

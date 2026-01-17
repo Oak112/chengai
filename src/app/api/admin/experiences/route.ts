@@ -25,6 +25,7 @@ type ExperiencePayload = {
   start_date?: string | null;
   end_date?: string | null;
   summary?: string | null;
+  details?: string | null;
   highlights?: string[];
   tech_stack?: string[];
   status?: string;
@@ -81,16 +82,25 @@ export async function POST(request: NextRequest) {
       start_date: body.start_date ? String(body.start_date) : null,
       end_date: body.end_date ? String(body.end_date) : null,
       summary: body.summary ? String(body.summary).trim() : null,
+      details: body.details ? String(body.details).trim() : null,
       highlights: Array.isArray(body.highlights) ? body.highlights : [],
       tech_stack: Array.isArray(body.tech_stack) ? body.tech_stack : [],
       status: typeof body.status === 'string' ? body.status : 'published',
     };
 
-    const { data, error } = await supabaseAdmin
+    let { data, error } = await supabaseAdmin
       .from('experiences')
       .insert(payload)
       .select()
       .single();
+
+    // Backward compatibility: details column may not exist yet.
+    if ((error?.code === '42703' || error?.code === 'PGRST204') && typeof payload.details !== 'undefined') {
+      delete (payload as Partial<typeof payload>).details;
+      const retry = await supabaseAdmin.from('experiences').insert(payload).select().single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       if (isMissingTableError(error)) {
@@ -132,19 +142,34 @@ export async function PUT(request: NextRequest) {
     if (typeof updates.location === 'string') updates.location = updates.location.trim();
     if (typeof updates.employment_type === 'string') updates.employment_type = updates.employment_type.trim();
     if (typeof updates.summary === 'string') updates.summary = updates.summary.trim();
+    if (typeof updates.details === 'string') updates.details = updates.details.trim() || null;
 
     if (updates.highlights && !Array.isArray(updates.highlights)) updates.highlights = [];
     if (updates.tech_stack && !Array.isArray(updates.tech_stack)) updates.tech_stack = [];
 
     updates.updated_at = new Date().toISOString();
 
-    const { data, error } = await supabaseAdmin
+    let { data, error } = await supabaseAdmin
       .from('experiences')
       .update(updates)
       .eq('id', id)
       .eq('owner_id', DEFAULT_OWNER_ID)
       .select()
       .single();
+
+    // Backward compatibility: details column may not exist yet.
+    if ((error?.code === '42703' || error?.code === 'PGRST204') && typeof updates.details !== 'undefined') {
+      delete updates.details;
+      const retry = await supabaseAdmin
+        .from('experiences')
+        .update(updates)
+        .eq('id', id)
+        .eq('owner_id', DEFAULT_OWNER_ID)
+        .select()
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       if (isMissingTableError(error)) {

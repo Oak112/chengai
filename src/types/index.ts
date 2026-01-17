@@ -7,6 +7,7 @@ export interface Project {
   title: string;
   subtitle: string | null;
   description: string;
+  details?: string | null;
   tech_stack?: string[];
   cover_image: string | null;
   start_date: string | null;
@@ -92,6 +93,7 @@ export interface Experience {
   start_date: string | null;
   end_date: string | null;
   summary: string | null;
+  details?: string | null;
   highlights: string[];
   tech_stack: string[];
   status: 'draft' | 'published' | 'archived';

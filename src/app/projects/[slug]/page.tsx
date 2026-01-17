@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, ExternalLink, Github, FileText } from 'lucide-react';
 import type { Project } from '@/types';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -123,6 +125,15 @@ export default async function ProjectPage({ params }: PageProps) {
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-white mb-3">Overview</h2>
         <p className="text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">{project.description}</p>
       </section>
+
+      {project.details && (
+        <section className="mt-6 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-white mb-3">Deep dive</h2>
+          <article className="prose prose-zinc dark:prose-invert max-w-none">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{project.details}</ReactMarkdown>
+          </article>
+        </section>
+      )}
     </div>
   );
 }

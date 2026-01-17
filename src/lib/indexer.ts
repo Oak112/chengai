@@ -84,23 +84,37 @@ export async function indexProject(project: {
   slug: string;
   subtitle?: string | null;
   description: string;
+  details?: string | null;
 }) {
-  const content = `Project: ${project.title}\n${project.subtitle || ''}\n\n${project.description}`;
-  const embedding = await generateEmbedding(content);
+  const header = [
+    `Project: ${project.title}`,
+    project.subtitle ? `Subtitle: ${project.subtitle}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
 
-  const chunks: ChunkInsert[] = [
-    {
-      owner_id: DEFAULT_OWNER_ID,
-      source_type: 'project',
-      source_id: project.id,
-      content,
-      embedding,
-      metadata: {
-        title: project.title,
-        slug: project.slug,
-      },
+  const bodyParts = [
+    project.description ? `Overview:\n${project.description}` : null,
+    project.details ? `Deep dive:\n${project.details}` : null,
+  ].filter(Boolean);
+
+  const parts = chunkText(bodyParts.join('\n\n'), 1000);
+  const contents = parts.map((part) => `${header}\n\n${part}`);
+  const embeddings = await generateEmbeddingsBatched(contents, 32);
+
+  const chunks: ChunkInsert[] = contents.map((content, i) => ({
+    owner_id: DEFAULT_OWNER_ID,
+    source_type: 'project',
+    source_id: project.id,
+    content,
+    embedding: embeddings[i],
+    metadata: {
+      title: project.title,
+      slug: project.slug,
+      chunk_index: i,
+      total_chunks: parts.length,
     },
-  ];
+  }));
 
   await replaceChunks('project', project.id, chunks);
 }
@@ -170,6 +184,7 @@ export async function indexExperience(experience: {
   start_date?: string | null;
   end_date?: string | null;
   summary?: string | null;
+  details?: string | null;
   highlights?: string[] | null;
   tech_stack?: string[] | null;
 }) {
@@ -196,7 +211,8 @@ export async function indexExperience(experience: {
     : [];
 
   const body = highlights.length > 0 ? `\n\nHighlights:\n- ${highlights.join('\n- ')}` : '';
-  const parts = chunkText(`${meta}${body}`, 1000);
+  const details = experience.details ? `\n\nDetailed narrative:\n${experience.details}` : '';
+  const parts = chunkText(`${meta}${body}${details}`, 1000);
 
   const contents = parts.map((part) => part);
   const embeddings = await generateEmbeddingsBatched(contents, 32);

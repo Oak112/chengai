@@ -7,6 +7,31 @@ export const runtime = 'nodejs';
 // Maximum execution time for rebuilding
 export const maxDuration = 300; // 5 minutes
 
+type ProjectRow = {
+  id: string;
+  title: string;
+  slug: string;
+  subtitle?: string | null;
+  description: string;
+  details?: string | null;
+  status: string;
+};
+
+type ExperienceRow = {
+  id: string;
+  company: string;
+  role: string;
+  location?: string | null;
+  employment_type?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  summary?: string | null;
+  details?: string | null;
+  highlights?: string[] | null;
+  tech_stack?: string[] | null;
+  status: string;
+};
+
 export async function POST() {
   try {
     if (!isSupabaseConfigured()) {
@@ -16,12 +41,30 @@ export async function POST() {
       );
     }
 
-    const { data: projects, error: projectsError } = await supabaseAdmin
-      .from('projects')
-      .select('id, title, slug, description, subtitle, status')
-      .eq('owner_id', DEFAULT_OWNER_ID)
-      .is('deleted_at', null);
-    if (projectsError) throw projectsError;
+    const projectsSelect = 'id, title, slug, description, details, subtitle, status';
+    const projectsSelectFallback = 'id, title, slug, description, subtitle, status';
+    let projects: ProjectRow[] | null = null;
+
+    {
+      const attempt = await supabaseAdmin
+        .from('projects')
+        .select(projectsSelect)
+        .eq('owner_id', DEFAULT_OWNER_ID)
+        .is('deleted_at', null);
+
+      if (attempt.error && (attempt.error.code === '42703' || attempt.error.code === 'PGRST204')) {
+        const fallback = await supabaseAdmin
+          .from('projects')
+          .select(projectsSelectFallback)
+          .eq('owner_id', DEFAULT_OWNER_ID)
+          .is('deleted_at', null);
+        if (fallback.error) throw fallback.error;
+        projects = fallback.data as ProjectRow[] | null;
+      } else {
+        if (attempt.error) throw attempt.error;
+        projects = attempt.data as ProjectRow[] | null;
+      }
+    }
 
     const { data: articles, error: articlesError } = await supabaseAdmin
       .from('articles')
@@ -43,13 +86,34 @@ export async function POST() {
       .eq('owner_id', DEFAULT_OWNER_ID);
     if (skillsError) throw skillsError;
 
-    const { data: experiences, error: experiencesError } = await supabaseAdmin
-      .from('experiences')
-      .select(
-        'id, company, role, location, employment_type, start_date, end_date, summary, highlights, tech_stack, status'
-      )
-      .eq('owner_id', DEFAULT_OWNER_ID)
-      .order('start_date', { ascending: false });
+    const experiencesSelect =
+      'id, company, role, location, employment_type, start_date, end_date, summary, details, highlights, tech_stack, status';
+    const experiencesSelectFallback =
+      'id, company, role, location, employment_type, start_date, end_date, summary, highlights, tech_stack, status';
+
+    let experiences: ExperienceRow[] | null = null;
+    let experiencesError: { code?: string } | null = null;
+
+    {
+      const attempt = await supabaseAdmin
+        .from('experiences')
+        .select(experiencesSelect)
+        .eq('owner_id', DEFAULT_OWNER_ID)
+        .order('start_date', { ascending: false });
+
+      if (attempt.error && (attempt.error.code === '42703' || attempt.error.code === 'PGRST204')) {
+        const fallback = await supabaseAdmin
+          .from('experiences')
+          .select(experiencesSelectFallback)
+          .eq('owner_id', DEFAULT_OWNER_ID)
+          .order('start_date', { ascending: false });
+        experiencesError = fallback.error as unknown as { code?: string } | null;
+        experiences = fallback.data as ExperienceRow[] | null;
+      } else {
+        experiencesError = attempt.error as unknown as { code?: string } | null;
+        experiences = attempt.data as ExperienceRow[] | null;
+      }
+    }
 
     // If the table hasn't been migrated yet, skip instead of failing the whole rebuild.
     const shouldSkipExperiences =

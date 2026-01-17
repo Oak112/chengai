@@ -20,6 +20,7 @@ type ExperienceDraft = {
   start_date: string;
   end_date: string;
   summary: string;
+  details: string;
   highlights_text: string;
   tech_stack_text: string;
   status: 'draft' | 'published' | 'archived';
@@ -33,6 +34,7 @@ const emptyDraft: ExperienceDraft = {
   start_date: '',
   end_date: '',
   summary: '',
+  details: '',
   highlights_text: '',
   tech_stack_text: '',
   status: 'published',
@@ -93,6 +95,7 @@ export default function AdminExperiencesPage() {
       start_date: exp.start_date || '',
       end_date: exp.end_date || '',
       summary: exp.summary || '',
+      details: exp.details || '',
       highlights_text: Array.isArray(exp.highlights) ? exp.highlights.join('\n') : '',
       tech_stack_text: Array.isArray(exp.tech_stack) ? exp.tech_stack.join(', ') : '',
       status: exp.status || 'published',
@@ -136,6 +139,7 @@ export default function AdminExperiencesPage() {
         start_date: draft.start_date || null,
         end_date: draft.end_date || null,
         summary: draft.summary.trim() || null,
+        details: draft.details.trim() || null,
         highlights,
         tech_stack,
         status: draft.status,
@@ -378,6 +382,14 @@ export default function AdminExperiencesPage() {
                 onChange={(e) => setDraft((d) => ({ ...d, summary: e.target.value }))}
                 placeholder="One-paragraph summary (optional)"
                 rows={3}
+                className="w-full rounded-xl border border-zinc-200 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+              />
+
+              <textarea
+                value={draft.details}
+                onChange={(e) => setDraft((d) => ({ ...d, details: e.target.value }))}
+                placeholder="Detailed narrative (optional, Markdown). Used for deep-dive interview Q&A and indexed for RAG."
+                rows={8}
                 className="w-full rounded-xl border border-zinc-200 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
               />
 

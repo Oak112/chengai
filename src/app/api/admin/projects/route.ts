@@ -9,6 +9,7 @@ async function insertProjectWithAutoSlug(input: {
   title: string;
   slug?: string;
   description: string;
+  details: string | null;
   subtitle: string | null;
   repo_url: string | null;
   demo_url: string | null;
@@ -21,7 +22,7 @@ async function insertProjectWithAutoSlug(input: {
   const slugProvided = Boolean(input.slug?.trim());
   const baseSlug = (input.slug?.trim() || slugify(input.title)) || `project-${Date.now()}`;
 
-  const attemptInsert = async (slug: string) =>
+  const attemptInsert = async (slug: string, omitDetails = false) =>
     supabaseAdmin
       .from('projects')
       .insert({
@@ -29,6 +30,7 @@ async function insertProjectWithAutoSlug(input: {
         title: input.title,
         slug,
         description: input.description,
+        ...(omitDetails ? {} : { details: input.details }),
         subtitle: input.subtitle,
         repo_url: input.repo_url,
         demo_url: input.demo_url,
@@ -41,11 +43,18 @@ async function insertProjectWithAutoSlug(input: {
       .select()
       .single();
 
-  let { data, error } = await attemptInsert(baseSlug);
+  let omitDetails = false;
+  let { data, error } = await attemptInsert(baseSlug, omitDetails);
+
+  // Backward compatibility: details column may not exist yet.
+  if (error?.code === '42703' || error?.code === 'PGRST204') {
+    omitDetails = true;
+    ({ data, error } = await attemptInsert(baseSlug, omitDetails));
+  }
 
   if (error?.code === '23505' && !slugProvided) {
     const unique = await ensureUniqueProjectSlug(baseSlug);
-    ({ data, error } = await attemptInsert(unique));
+    ({ data, error } = await attemptInsert(unique, omitDetails));
   }
 
   if (error?.code === '23505' && slugProvided) {
@@ -111,6 +120,7 @@ export async function POST(request: NextRequest) {
       title,
       slug,
       description,
+      details,
       subtitle,
       repo_url,
       demo_url,
@@ -132,6 +142,7 @@ export async function POST(request: NextRequest) {
       title: String(title).trim(),
       slug: typeof slug === 'string' ? slug.trim() : undefined,
       description: String(description).trim(),
+      details: typeof details === 'string' ? details.trim() || null : null,
       subtitle: subtitle ? String(subtitle).trim() : null,
       repo_url: repo_url ? String(repo_url).trim() : null,
       demo_url: demo_url ? String(demo_url).trim() : null,
@@ -182,6 +193,10 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    if (typeof updates.details === 'string') {
+      updates.details = updates.details.trim() || null;
+    }
+
     updates.updated_at = new Date().toISOString();
 
     if (typeof updates.slug === 'string') {
@@ -205,13 +220,31 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    const { data, error } = await supabaseAdmin
+    let { data, error } = await supabaseAdmin
       .from('projects')
       .update(updates)
       .eq('id', id)
       .eq('owner_id', DEFAULT_OWNER_ID)
       .select()
       .single();
+
+    if (
+      error &&
+      (error.code === '42703' || error.code === 'PGRST204') &&
+      typeof updates.details !== 'undefined'
+    ) {
+      // Backward compatibility: details column may not exist yet.
+      delete updates.details;
+      const retry = await supabaseAdmin
+        .from('projects')
+        .update(updates)
+        .eq('id', id)
+        .eq('owner_id', DEFAULT_OWNER_ID)
+        .select()
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) throw error;
 

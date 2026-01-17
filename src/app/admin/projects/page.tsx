@@ -18,6 +18,7 @@ type ProjectDraft = {
   slug: string;
   subtitle: string;
   description: string;
+  details: string;
   repo_url: string;
   demo_url: string;
   article_url: string;
@@ -32,6 +33,7 @@ const emptyDraft: ProjectDraft = {
   slug: '',
   subtitle: '',
   description: '',
+  details: '',
   repo_url: '',
   demo_url: '',
   article_url: '',
@@ -80,6 +82,7 @@ export default function AdminProjectsPage() {
       slug: project.slug,
       subtitle: project.subtitle || '',
       description: project.description || '',
+      details: project.details || '',
       repo_url: project.repo_url || '',
       demo_url: project.demo_url || '',
       article_url: project.article_url || '',
@@ -110,6 +113,7 @@ export default function AdminProjectsPage() {
         ...(draft.slug.trim() ? { slug: draft.slug.trim() } : {}),
         subtitle: draft.subtitle.trim() || null,
         description: draft.description.trim(),
+        details: draft.details.trim() || null,
         repo_url: draft.repo_url.trim() || null,
         demo_url: draft.demo_url.trim() || null,
         article_url: draft.article_url.trim() || null,
@@ -331,6 +335,12 @@ export default function AdminProjectsPage() {
                 onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
                 placeholder="Description (required)"
                 className="w-full min-h-[140px] rounded-xl border border-zinc-200 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+              />
+              <textarea
+                value={draft.details}
+                onChange={(e) => setDraft((d) => ({ ...d, details: e.target.value }))}
+                placeholder="Detailed narrative (optional, Markdown). Used for deep-dive interview Q&A and indexed for RAG."
+                className="w-full min-h-[220px] rounded-xl border border-zinc-200 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
               />
               <div className="grid gap-3 sm:grid-cols-3">
                 <input
