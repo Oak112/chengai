@@ -209,20 +209,20 @@ function buildIntentInstruction(intent: ChatIntent): string {
     case 'internships':
       return (
         '\n\nAnswer style (internships): Give a concise list of internships/work experiences. ' +
-        'For each, include company, role, dates (if available), and 2–3 concrete highlights. ' +
+        'For each, include company, role, dates (if available), and 2 to 3 concrete highlights. ' +
         'If dates or metrics are missing in SOURCES, omit them instead of guessing.'
       );
     case 'skills':
       return (
-        '\n\nAnswer style (skills): List the top 5–8 skills and briefly connect each to at least one project/experience when possible. ' +
+        '\n\nAnswer style (skills): List the top 5 to 8 skills and briefly connect each to at least one project/experience when possible. ' +
         'Prefer specificity over generic statements.'
       );
     case 'projects':
       return (
-        '\n\nAnswer style (projects): List 3–6 representative things I’ve built (apps / websites / projects). ' +
+        '\n\nAnswer style (projects): List 3 to 6 representative things I’ve built (apps / websites / projects). ' +
         'If ChengAI is available in SOURCES, include it. ' +
-        'For each: 1-line what it is + 1-line what I built/did + a URL when available. ' +
-        'If asked about open-source and none is shown in SOURCES, say so plainly.'
+        'For each: one sentence on what it is, one sentence on what I built or did, and a URL when available. ' +
+        'If asked about open source and none is shown in SOURCES, say so plainly.'
       );
     case 'cover_letter':
       return (
@@ -234,14 +234,14 @@ function buildIntentInstruction(intent: ChatIntent): string {
       return (
         '\n\nAnswer style (job match): Answer the direct question first (fit/match), then support it with evidence. ' +
         'If the user asked a yes/no question (e.g., “Do you match it?”), answer yes/no in the first sentence. ' +
-        'Keep it concise: 1 short fit paragraph + 4–8 bullets (strengths + gaps) + 1 suggested next step. ' +
+        'Keep it concise: one short fit paragraph, 4 to 8 bullets (strengths and gaps), and one suggested next step. ' +
         'Do NOT draft a cover letter, resume tailoring plan, or application answers unless the user explicitly asks. ' +
-        'At most, offer a single follow-up like: “Want me to draft a cover letter or outreach note based on this JD?”'
+        'At most, offer a single follow up like: “Want me to draft a cover letter or outreach note based on this JD?”'
       );
     case 'all_resources':
       return (
         '\n\nAnswer style (all resources): Summarize across resume, experience, projects, skills, and writing. ' +
-        'Organize the answer into 3–5 sections with short bullets (no long walls of text).'
+        'Organize the answer into 3 to 5 sections with short bullets (no long walls of text).'
       );
     default:
       return '\n\nAnswer style: Be direct and helpful. Offer a concrete answer first, then optional next steps.';
@@ -587,7 +587,9 @@ async function getCatalogFallbackSources(sourceTypes?: string[]): Promise<ChunkR
       const meta = [
         exp.location ? `Location: ${exp.location}` : null,
         exp.employment_type ? `Type: ${exp.employment_type}` : null,
-        exp.start_date || exp.end_date ? `Dates: ${exp.start_date || 'n/a'} — ${exp.end_date || 'Present'}` : null,
+        exp.start_date || exp.end_date
+          ? `Dates: ${exp.start_date || 'n/a'} to ${exp.end_date || 'Present'}`
+          : null,
         Array.isArray(exp.tech_stack) && exp.tech_stack.length > 0 ? `Tech: ${exp.tech_stack.join(', ')}` : null,
       ]
         .filter(Boolean)
@@ -595,7 +597,7 @@ async function getCatalogFallbackSources(sourceTypes?: string[]): Promise<ChunkR
 
       const highlights =
         Array.isArray(exp.highlights) && exp.highlights.length > 0
-          ? `\n\nHighlights:\n- ${exp.highlights.join('\n- ')}`
+          ? `\n\nHighlights:\n• ${exp.highlights.join('\n• ')}`
           : '';
 
       push({

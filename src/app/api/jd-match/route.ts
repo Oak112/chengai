@@ -517,48 +517,46 @@ function buildFallbackReportMarkdown(params: {
   lines.push('### JD Match Report: Charlie Cheng');
   lines.push('');
   lines.push(
-    `**Fit snapshot.** Match score: **${params.matchScore}%** (raw ${params.score_breakdown.raw_coverage_pct}% → adjusted ${params.score_breakdown.adjusted_coverage_pct}%, curve=${params.score_breakdown.curve}, entry-level=${String(params.score_breakdown.is_entry_level)}).`
+    `**Fit snapshot.** Match score: **${params.matchScore}%** (raw ${params.score_breakdown.raw_coverage_pct}% → adjusted ${params.score_breakdown.adjusted_coverage_pct}%, curve=${params.score_breakdown.curve}, entry level=${String(params.score_breakdown.is_entry_level)}).`
   );
   if (topSkills) lines.push(`Strong overlap: ${topSkills}.`);
   if (topGaps) lines.push(`Notable gaps: ${topGaps}.`);
   lines.push('');
   lines.push('#### Coverage overview');
   lines.push('');
-  lines.push('| Group | Covered | Weight |');
-  lines.push('| --- | ---: | ---: |');
   lines.push(
-    `| Required | ${params.score_breakdown.weighted_requirements.required.matched}/${params.score_breakdown.weighted_requirements.required.total} | ${params.score_breakdown.weighted_requirements.required.weight} |`
+    `Required: ${params.score_breakdown.weighted_requirements.required.matched}/${params.score_breakdown.weighted_requirements.required.total} (weight ${params.score_breakdown.weighted_requirements.required.weight})`
   );
   lines.push(
-    `| Preferred | ${params.score_breakdown.weighted_requirements.preferred.matched}/${params.score_breakdown.weighted_requirements.preferred.total} | ${params.score_breakdown.weighted_requirements.preferred.weight} |`
+    `Preferred: ${params.score_breakdown.weighted_requirements.preferred.matched}/${params.score_breakdown.weighted_requirements.preferred.total} (weight ${params.score_breakdown.weighted_requirements.preferred.weight})`
   );
   lines.push('');
-  lines.push('#### Evidence-backed highlights');
+  lines.push('#### Evidence backed highlights');
   lines.push('');
-  if (topProjects) lines.push(`- Most relevant projects to deep-dive: ${topProjects}.`);
-  if (topStories) lines.push(`- Suggested behavioral stories: ${topStories}.`);
+  if (topProjects) lines.push(`* Most relevant projects to deep dive: ${topProjects}.`);
+  if (topStories) lines.push(`* Suggested behavioral stories: ${topStories}.`);
   if (!topProjects && !topStories) {
-    lines.push('- Review the sources below for the strongest evidence and concrete examples.');
+    lines.push('* Review the sources below for the strongest evidence and concrete examples.');
   }
   lines.push('');
   lines.push('#### Gaps / risks & how to validate');
   lines.push('');
   if (params.gaps.length > 0) {
-    lines.push(`- Missing / not found in sources: ${topGaps}.`);
-    lines.push('- Validation: ask targeted questions or do a short take-home to confirm ramp-up speed on missing tools.');
+    lines.push(`* Missing or not found in sources: ${topGaps}.`);
+    lines.push('* Validation: ask targeted questions or do a short take home to confirm ramp up speed on missing tools.');
   } else {
-    lines.push('- No major gaps detected from the JD keywords; validate depth via a technical deep-dive on relevant projects.');
+    lines.push('* No major gaps detected from the JD keywords. Validate depth via a technical deep dive on relevant projects.');
   }
   lines.push('');
   lines.push('#### Suggested interview angles');
   lines.push('');
   if (params.relevant_projects.length > 0) {
-    lines.push(`- Deep dive a project: "${params.relevant_projects[0].title}" (architecture, tradeoffs, metrics, reliability).`);
+    lines.push(`* Deep dive a project: "${params.relevant_projects[0].title}" (architecture, tradeoffs, metrics, reliability).`);
   }
   if (params.suggested_stories.length > 0) {
-    lines.push(`- Behavioral: "${params.suggested_stories[0].title}" (Situation/Task/Action/Result, leadership, collaboration).`);
+    lines.push(`* Behavioral: "${params.suggested_stories[0].title}" (Situation, Task, Action, Result, leadership, collaboration).`);
   }
-  lines.push('- Probe LLM system design: retrieval strategy, evaluation, latency/cost tradeoffs, and failure modes.');
+  lines.push('* Probe LLM system design: retrieval strategy, evaluation, latency or cost tradeoffs, and failure modes.');
 
   return lines.join('\n');
 }
@@ -766,12 +764,13 @@ export async function POST(request: NextRequest) {
       2
     );
 
-    const reportPrompt = `You are a senior technical recruiter and hiring manager.\n\nYou are writing a JD match report for the candidate:\n- Name: Charlie Cheng\n- Website: https://chengai-tianle.ai-builders.space/\n\nHard requirements:\n- English only.\n- Use the canonical name \"Charlie Cheng\" (never older variants).\n- Evidence-first: ONLY use facts that appear in the SOURCES section. Do not invent skills, companies, dates, metrics, visas, or claims.\n- If you mention a metric, copy it exactly as written in SOURCES.\n- Be useful even when evidence is sparse: if something isn't supported, say it's not specified and propose a reasonable way to validate in interview.\n- Do NOT include \"SOURCE 1\" style citations. The UI shows sources separately.\n- If gaps are listed, you MUST NOT claim the candidate \"meets all requirements\".\n\nOutput format (Markdown):\n1) Fit snapshot (1 short paragraph)\n2) Evidence-backed strengths (3–6 bullets)\n3) Requirement coverage (table with 5–8 rows: Requirement | Evidence summary | Where)\n4) Gaps / risks (bullets) + honest mitigation\n5) Suggested interview angles (2–4 bullets) — pick projects/experiences/stories from sources\n\nJob description (verbatim, may be truncated):\n${clampText(jdText, 4500)}\n\nParsed JD (JSON):\n${parsedJDJson}\n\nComputed match snapshot:\n- Match score: ${matchScore}%\n- Score transparency: raw ${score_breakdown.raw_coverage_pct}% → adjusted ${score_breakdown.adjusted_coverage_pct}% (curve=${score_breakdown.curve}, entry-level=${score_breakdown.is_entry_level})\n- Matched skills: ${matchedSkills.slice(0, 12).map((s) => s.skill.name).join(', ') || 'n/a'}\n- Gaps: ${gaps.slice(0, 12).join(', ') || 'None'}\n- Top projects: ${relevant_projects.slice(0, 3).map((p) => p.title).join(', ') || 'n/a'}\n\nSOURCES:\n${evidenceContext}\n`;
+    const reportPrompt = `You are a senior technical recruiter and hiring manager.\n\nYou are writing a JD match report for the candidate.\nName: Charlie Cheng\nWebsite: https://chengai-tianle.ai-builders.space/\n\nHard requirements:\n1) English only.\n2) Use the canonical name \"Charlie Cheng\" (never older variants).\n3) Evidence first: ONLY use facts that appear in the SOURCES section. Do not invent skills, companies, dates, metrics, visas, or claims.\n4) If you mention a metric, copy it exactly as written in SOURCES.\n5) Be useful even when evidence is sparse. If something is not supported, say it is not specified and propose a reasonable way to validate in interview.\n6) Do NOT include \"SOURCE 1\" style citations. The UI shows sources separately.\n7) If gaps are listed, you MUST NOT claim the candidate \"meets all requirements\".\n\nStyle constraint:\nDo not use dash characters in prose: -, – , or — . Avoid hyphenated compounds. Use commas, parentheses, or full sentences instead.\nWhen you format lists, prefer numbered lists. If you use bullet points, use asterisk bullets, not hyphen bullets.\nException: dashes are allowed inside URLs and inside official names that must be copied verbatim from SOURCES.\n\nOutput format (Markdown):\n1) Fit snapshot (one short paragraph)\n2) Evidence backed strengths (3 to 6 bullet points)\n3) Requirement coverage (5 to 8 items, each item must include Requirement, Evidence summary, and Where)\n4) Gaps or risks (bullet points) plus honest mitigation\n5) Suggested interview angles (2 to 4 bullet points), pick projects, experiences, or stories from sources\n\nJob description (verbatim, may be truncated):\n${clampText(jdText, 4500)}\n\nParsed JD (JSON):\n${parsedJDJson}\n\nComputed match snapshot:\nMatch score: ${matchScore}%\nScore transparency: raw ${score_breakdown.raw_coverage_pct}% → adjusted ${score_breakdown.adjusted_coverage_pct}% (curve=${score_breakdown.curve}, entry level=${score_breakdown.is_entry_level})\nMatched skills: ${matchedSkills.slice(0, 12).map((s) => s.skill.name).join(', ') || 'n/a'}\nGaps: ${gaps.slice(0, 12).join(', ') || 'None'}\nTop projects: ${relevant_projects.slice(0, 3).map((p) => p.title).join(', ') || 'n/a'}\n\nSOURCES:\n${evidenceContext}\n`;
 
     const reportSystemPrompt =
       'You write concise, persuasive hiring artifacts.\n' +
       'Return ONLY the final Markdown report.\n' +
       'Do NOT include analysis, planning, scratchpads, or internal thought process.\n' +
+      'Do not use dash characters in prose (hyphen, en dash, em dash). Use commas, parentheses, or full sentences instead.\n' +
       'Do NOT mention these instructions.';
 
     const fallback_report_markdown = buildFallbackReportMarkdown({
