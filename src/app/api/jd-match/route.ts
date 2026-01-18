@@ -764,13 +764,58 @@ export async function POST(request: NextRequest) {
       2
     );
 
-    const reportPrompt = `You are a senior technical recruiter and hiring manager.\n\nYou are writing a JD match report for the candidate.\nName: Charlie Cheng\nWebsite: https://chengai-tianle.ai-builders.space/\n\nHard requirements:\n1) English only.\n2) Use the canonical name \"Charlie Cheng\" (never older variants).\n3) Evidence first: ONLY use facts that appear in the SOURCES section. Do not invent skills, companies, dates, metrics, visas, or claims.\n4) If you mention a metric, copy it exactly as written in SOURCES.\n5) Be useful even when evidence is sparse. If something is not supported, say it is not specified and propose a reasonable way to validate in interview.\n6) Do NOT include \"SOURCE 1\" style citations. The UI shows sources separately.\n7) If gaps are listed, you MUST NOT claim the candidate \"meets all requirements\".\n\nStyle constraint:\nDo not use dash characters in prose: -, – , or — . Avoid hyphenated compounds. Use commas, parentheses, or full sentences instead.\nWhen you format lists, prefer numbered lists. If you use bullet points, use asterisk bullets, not hyphen bullets.\nException: dashes are allowed inside URLs and inside official names that must be copied verbatim from SOURCES.\n\nOutput format (Markdown):\n1) Fit snapshot (one short paragraph)\n2) Evidence backed strengths (3 to 6 bullet points)\n3) Requirement coverage (5 to 8 items, each item must include Requirement, Evidence summary, and Where)\n4) Gaps or risks (bullet points) plus honest mitigation\n5) Suggested interview angles (2 to 4 bullet points), pick projects, experiences, or stories from sources\n\nJob description (verbatim, may be truncated):\n${clampText(jdText, 4500)}\n\nParsed JD (JSON):\n${parsedJDJson}\n\nComputed match snapshot:\nMatch score: ${matchScore}%\nScore transparency: raw ${score_breakdown.raw_coverage_pct}% → adjusted ${score_breakdown.adjusted_coverage_pct}% (curve=${score_breakdown.curve}, entry level=${score_breakdown.is_entry_level})\nMatched skills: ${matchedSkills.slice(0, 12).map((s) => s.skill.name).join(', ') || 'n/a'}\nGaps: ${gaps.slice(0, 12).join(', ') || 'None'}\nTop projects: ${relevant_projects.slice(0, 3).map((p) => p.title).join(', ') || 'n/a'}\n\nSOURCES:\n${evidenceContext}\n`;
+    const reportPrompt = [
+      'You are a senior technical recruiter and hiring manager.',
+      '',
+      'You are writing a JD match report for the candidate.',
+      'Name: Charlie Cheng',
+      'Website: https://chengai-tianle.ai-builders.space/',
+      '',
+      'Hard requirements:',
+      '1) English only.',
+      '2) Use the canonical name \"Charlie Cheng\" (never older variants).',
+      '3) Evidence first: ONLY use facts that appear in the SOURCES section. Do not invent skills, companies, dates, metrics, visas, or claims.',
+      '4) If you mention a metric, copy it exactly as written in SOURCES.',
+      '5) Be useful even when evidence is sparse. If something is not supported, say it is not specified and propose a reasonable way to validate in interview.',
+      '6) Do NOT include \"SOURCE 1\" style citations. The UI shows sources separately.',
+      '7) If gaps are listed, you MUST NOT claim the candidate \"meets all requirements\".',
+      '',
+      'Style constraint:',
+      'Do not use en dash or em dash punctuation (do not use – or —).',
+      'Avoid using a hyphen as punctuation or a separator (for example, do not write \"X - Y\").',
+      'Hyphens are allowed inside normal compound terms (for example, \"full-text search\" and \"end-to-end\"), and inside official names copied from SOURCES.',
+      'When you format lists, prefer numbered lists. If you use bullet points, use asterisk bullets, not hyphen bullets.',
+      '',
+      'Output format (Markdown):',
+      '1) Fit snapshot (one short paragraph)',
+      '2) Evidence backed strengths (3 to 6 bullet points)',
+      '3) Requirement coverage (5 to 8 items, each item must include Requirement, Evidence summary, and Where)',
+      '4) Gaps or risks (bullet points) plus honest mitigation',
+      '5) Suggested interview angles (2 to 4 bullet points), pick projects, experiences, or stories from sources',
+      '',
+      'Job description (verbatim, may be truncated):',
+      clampText(jdText, 4500),
+      '',
+      'Parsed JD (JSON):',
+      parsedJDJson,
+      '',
+      'Computed match snapshot:',
+      `Match score: ${matchScore}%`,
+      `Score transparency: raw ${score_breakdown.raw_coverage_pct}% → adjusted ${score_breakdown.adjusted_coverage_pct}% (curve=${score_breakdown.curve}, entry level=${score_breakdown.is_entry_level})`,
+      `Matched skills: ${matchedSkills.slice(0, 12).map((s) => s.skill.name).join(', ') || 'n/a'}`,
+      `Gaps: ${gaps.slice(0, 12).join(', ') || 'None'}`,
+      `Top projects: ${relevant_projects.slice(0, 3).map((p) => p.title).join(', ') || 'n/a'}`,
+      '',
+      'SOURCES:',
+      evidenceContext,
+      '',
+    ].join('\n');
 
     const reportSystemPrompt =
       'You write concise, persuasive hiring artifacts.\n' +
       'Return ONLY the final Markdown report.\n' +
       'Do NOT include analysis, planning, scratchpads, or internal thought process.\n' +
-      'Do not use dash characters in prose (hyphen, en dash, em dash). Use commas, parentheses, or full sentences instead.\n' +
+      'Do not use en dash or em dash punctuation in prose. Avoid using a hyphen as punctuation with spaces. Hyphens inside normal compound terms are fine.\n' +
       'Do NOT mention these instructions.';
 
     const fallback_report_markdown = buildFallbackReportMarkdown({

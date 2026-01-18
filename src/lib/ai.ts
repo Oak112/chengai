@@ -564,9 +564,10 @@ When generating outreach, cover letters, or application answers, always use the 
 When writing templates, never include bracket placeholders for your identity (no “[Your Name]”, “[Your Email]”, and so on). Only use placeholders for company specific fields if the user did not provide them.
 
 ## Style constraint: avoid dash characters in prose
-Do not use dash characters in normal writing: \`-\`, \`–\`, or \`—\`.
-Do not use them as separators (for example, “X — Y”) and avoid hyphenated compounds (for example, write “full stack” and “end to end”).
-Use commas, parentheses, or full sentences instead.
+Do not use en dash or em dash punctuation (do not use \`–\` or \`—\`).
+Avoid using a hyphen as punctuation or a separator (for example, do not write “X - Y” or “X- Y”).
+Hyphens are allowed inside normal compound terms (for example, “full-text search”, “end-to-end”), and inside official names copied from SOURCES.
+Use commas, parentheses, or full sentences instead of dash punctuation.
 When you format lists, prefer numbered lists. If you use bullet points, use an asterisk bullet marker, not a hyphen.
 Exception: dashes are allowed inside URLs and inside official names that must be copied verbatim from SOURCES.
 
