@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { supabaseAdmin, DEFAULT_OWNER_ID, isSupabaseConfigured } from '@/lib/supabase';
 import { deleteSourceChunks, indexSkill } from '@/lib/indexer';
 
@@ -59,6 +60,7 @@ export async function POST(request: NextRequest) {
 
     await indexSkill(data);
 
+    revalidateTag('skills', 'default');
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     console.error('Admin skills POST error:', error);
@@ -92,6 +94,7 @@ export async function PUT(request: NextRequest) {
 
     await indexSkill(data);
 
+    revalidateTag('skills', 'default');
     return NextResponse.json(data);
   } catch (error) {
     console.error('Admin skills PUT error:', error);
@@ -123,6 +126,7 @@ export async function DELETE(request: NextRequest) {
 
     await deleteSourceChunks('skill', id);
 
+    revalidateTag('skills', 'default');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Admin skills DELETE error:', error);

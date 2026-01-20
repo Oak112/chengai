@@ -1,4 +1,4 @@
-import { supabase, DEFAULT_OWNER_ID } from '@/lib/supabase';
+import { getSkills } from '@/lib/content';
 import type { Skill } from '@/types';
 
 export const metadata = {
@@ -26,20 +26,10 @@ const categoryColors: Record<string, string> = {
   other: 'from-zinc-500 to-zinc-600',
 };
 
-async function getSkills(): Promise<Record<string, Skill[]>> {
-  const { data, error } = await supabase
-    .from('skills')
-    .select('*')
-    .eq('owner_id', DEFAULT_OWNER_ID)
-    .order('proficiency', { ascending: false });
+async function getGroupedSkills(): Promise<Record<string, Skill[]>> {
+  const skills = await getSkills();
 
-  if (error) {
-    console.error('Error fetching skills:', error);
-    return {};
-  }
-
-  // Group by category
-  return (data || []).reduce((acc, skill) => {
+  return skills.reduce((acc, skill) => {
     const category = skill.category || 'other';
     if (!acc[category]) acc[category] = [];
     acc[category].push(skill);
@@ -65,7 +55,7 @@ function ProficiencyBar({ level }: { level: number }) {
 }
 
 export default async function SkillsPage() {
-  const groupedSkills = await getSkills();
+  const groupedSkills = await getGroupedSkills();
   const categories = Object.keys(groupedSkills);
 
   return (

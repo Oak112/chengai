@@ -1,7 +1,6 @@
 import Link from 'next/link';
-import { supabase, DEFAULT_OWNER_ID } from '@/lib/supabase';
+import { getPublishedArticles } from '@/lib/content';
 import { Calendar } from 'lucide-react';
-import type { Article } from '@/types';
 
 export const metadata = {
   title: 'Articles | Charlie Cheng',
@@ -10,24 +9,8 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic';
 
-async function getArticles(): Promise<Article[]> {
-  const { data, error } = await supabase
-    .from('articles')
-    .select('*')
-    .eq('owner_id', DEFAULT_OWNER_ID)
-    .eq('status', 'published')
-    .order('published_at', { ascending: false });
-
-  if (error) {
-    console.error('Error fetching articles:', error);
-    return [];
-  }
-
-  return data || [];
-}
-
 export default async function ArticlesPage() {
-  const articles = await getArticles();
+  const articles = await getPublishedArticles();
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">

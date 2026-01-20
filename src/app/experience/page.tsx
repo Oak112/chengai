@@ -1,4 +1,4 @@
-import { supabase, DEFAULT_OWNER_ID } from '@/lib/supabase';
+import { getPublishedExperiences } from '@/lib/content';
 import type { Experience } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -10,23 +10,6 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic';
 
-async function getExperiences(): Promise<Experience[]> {
-  const { data, error } = await supabase
-    .from('experiences')
-    .select('*')
-    .eq('owner_id', DEFAULT_OWNER_ID)
-    .eq('status', 'published')
-    .order('start_date', { ascending: false })
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('Error fetching experiences:', error);
-    return [];
-  }
-
-  return (data as Experience[] | null) || [];
-}
-
 function formatDateRange(exp: Experience): string | null {
   const start = exp.start_date ? String(exp.start_date) : null;
   const end = exp.end_date ? String(exp.end_date) : 'Present';
@@ -35,7 +18,7 @@ function formatDateRange(exp: Experience): string | null {
 }
 
 export default async function ExperiencePage() {
-  const experiences = await getExperiences();
+  const experiences = await getPublishedExperiences();
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">

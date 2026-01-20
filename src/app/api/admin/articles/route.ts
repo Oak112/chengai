@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { supabaseAdmin, DEFAULT_OWNER_ID, isSupabaseConfigured } from '@/lib/supabase';
 import { deleteSourceChunks, indexArticle } from '@/lib/indexer';
 import { slugify } from '@/lib/slug';
@@ -126,6 +127,7 @@ export async function POST(request: NextRequest) {
       await indexArticle(data);
     }
 
+    revalidateTag('articles', 'default');
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     console.error('Admin articles POST error:', error);
@@ -210,6 +212,7 @@ export async function PUT(request: NextRequest) {
       await deleteSourceChunks('article', data.id);
     }
 
+    revalidateTag('articles', 'default');
     return NextResponse.json(data);
   } catch (error) {
     console.error('Admin articles PUT error:', error);
@@ -241,6 +244,7 @@ export async function DELETE(request: NextRequest) {
 
     await deleteSourceChunks('article', id);
 
+    revalidateTag('articles', 'default');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Admin articles DELETE error:', error);

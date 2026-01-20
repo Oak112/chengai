@@ -1,35 +1,17 @@
-import { supabase, DEFAULT_OWNER_ID } from '@/lib/supabase';
+import { getPublishedArticleBySlug } from '@/lib/content';
 import { notFound } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Calendar, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
-import type { Article } from '@/types';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-async function getArticle(slug: string): Promise<Article | null> {
-  const { data, error } = await supabase
-    .from('articles')
-    .select('*')
-    .eq('owner_id', DEFAULT_OWNER_ID)
-    .eq('status', 'published')
-    .eq('slug', slug)
-    .single();
-
-  if (error) {
-    console.error('Error fetching article:', error);
-    return null;
-  }
-
-  return data;
-}
-
 export async function generateMetadata({ params }: PageProps) {
   const { slug } = await params;
-  const article = await getArticle(slug);
+  const article = await getPublishedArticleBySlug(slug);
   
   if (!article) {
     return { title: 'Article Not Found' };
@@ -43,7 +25,7 @@ export async function generateMetadata({ params }: PageProps) {
 
 export default async function ArticlePage({ params }: PageProps) {
   const { slug } = await params;
-  const article = await getArticle(slug);
+  const article = await getPublishedArticleBySlug(slug);
 
   if (!article) {
     notFound();

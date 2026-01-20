@@ -1,6 +1,5 @@
 import Link from 'next/link';
-import { supabase, DEFAULT_OWNER_ID } from '@/lib/supabase';
-import type { Story } from '@/types';
+import { getPublicStories } from '@/lib/content';
 import { ArrowRight } from 'lucide-react';
 
 export const metadata = {
@@ -10,24 +9,8 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic';
 
-async function getStories(): Promise<Story[]> {
-  const { data, error } = await supabase
-    .from('stories')
-    .select('*')
-    .eq('owner_id', DEFAULT_OWNER_ID)
-    .eq('is_public', true)
-    .order('updated_at', { ascending: false });
-
-  if (error) {
-    console.error('Error fetching stories:', error);
-    return [];
-  }
-
-  return data || [];
-}
-
 export default async function StoriesPage() {
-  const stories = await getStories();
+  const stories = await getPublicStories();
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">

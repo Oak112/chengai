@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { supabaseAdmin, DEFAULT_OWNER_ID, isSupabaseConfigured } from '@/lib/supabase';
 import { deleteSourceChunks, indexStory } from '@/lib/indexer';
 
@@ -72,6 +73,7 @@ export async function POST(request: NextRequest) {
     if (data.is_public) {
       await indexStory(data);
     }
+    revalidateTag('stories', 'default');
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     console.error('Admin stories POST error:', error);
@@ -113,6 +115,7 @@ export async function PUT(request: NextRequest) {
     } else {
       await deleteSourceChunks('story', id);
     }
+    revalidateTag('stories', 'default');
     return NextResponse.json(data);
   } catch (error) {
     console.error('Admin stories PUT error:', error);
@@ -142,6 +145,7 @@ export async function DELETE(request: NextRequest) {
     if (error) throw error;
 
     await deleteSourceChunks('story', id);
+    revalidateTag('stories', 'default');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Admin stories DELETE error:', error);

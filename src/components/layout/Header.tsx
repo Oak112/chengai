@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { Menu, X, MessageSquare, Briefcase, Code, FileText, User, ScrollText, Building2 } from 'lucide-react';
 import { trackEvent } from '@/lib/analytics';
 
@@ -19,11 +19,40 @@ const navItems = [
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/';
     return pathname === href || pathname.startsWith(`${href}/`);
   };
+
+  useEffect(() => {
+    const runPrefetch = () => {
+      for (const item of navItems) {
+        if (item.href === pathname) continue;
+        router.prefetch(item.href);
+      }
+    };
+
+    const requestIdleCallbackFn = (globalThis as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number })
+      .requestIdleCallback;
+    const cancelIdleCallbackFn = (globalThis as unknown as { cancelIdleCallback?: (id: number) => void })
+      .cancelIdleCallback;
+
+    if (typeof requestIdleCallbackFn === 'function') {
+      const id = requestIdleCallbackFn(runPrefetch, { timeout: 1500 });
+      return () => {
+        try {
+          cancelIdleCallbackFn?.(id);
+        } catch {
+          // ignore
+        }
+      };
+    }
+
+    const t = setTimeout(runPrefetch, 250);
+    return () => clearTimeout(t);
+  }, [pathname, router]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-zinc-200/70 bg-white/70 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/50">
@@ -44,6 +73,7 @@ export default function Header() {
             <Link
               key={item.href}
               href={item.href}
+              prefetch
               aria-current={isActive(item.href) ? 'page' : undefined}
               onClick={() => trackEvent('nav_click', { href: item.href, label: item.label })}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-all ${
@@ -75,6 +105,7 @@ export default function Header() {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch
                 onClick={() => {
                   trackEvent('nav_click', { href: item.href, label: item.label, surface: 'mobile_menu' });
                   setIsMenuOpen(false);

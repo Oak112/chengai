@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { supabaseAdmin, DEFAULT_OWNER_ID, isSupabaseConfigured } from '@/lib/supabase';
 import { deleteSourceChunks, indexExperience } from '@/lib/indexer';
 
@@ -141,6 +142,7 @@ export async function POST(request: NextRequest) {
       await indexExperience(data);
     }
 
+    revalidateTag('experiences', 'default');
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     console.error('Admin experiences POST error:', error);
@@ -217,6 +219,7 @@ export async function PUT(request: NextRequest) {
       await deleteSourceChunks('experience', id);
     }
 
+    revalidateTag('experiences', 'default');
     return NextResponse.json(data);
   } catch (error) {
     console.error('Admin experiences PUT error:', error);
@@ -253,6 +256,7 @@ export async function DELETE(request: NextRequest) {
 
     await deleteSourceChunks('experience', id);
 
+    revalidateTag('experiences', 'default');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Admin experiences DELETE error:', error);

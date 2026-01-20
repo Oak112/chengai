@@ -1,8 +1,7 @@
-import { supabase, DEFAULT_OWNER_ID } from '@/lib/supabase';
+import { getPublishedProjectBySlug } from '@/lib/content';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, ExternalLink, Github, FileText } from 'lucide-react';
-import type { Project } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -10,27 +9,9 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-async function getProject(slug: string): Promise<Project | null> {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('*')
-    .eq('owner_id', DEFAULT_OWNER_ID)
-    .eq('status', 'published')
-    .is('deleted_at', null)
-    .eq('slug', slug)
-    .single();
-
-  if (error) {
-    console.error('Error fetching project:', error);
-    return null;
-  }
-
-  return data;
-}
-
 export async function generateMetadata({ params }: PageProps) {
   const { slug } = await params;
-  const project = await getProject(slug);
+  const project = await getPublishedProjectBySlug(slug);
 
   if (!project) {
     return { title: 'Project Not Found' };
@@ -44,7 +25,7 @@ export async function generateMetadata({ params }: PageProps) {
 
 export default async function ProjectPage({ params }: PageProps) {
   const { slug } = await params;
-  const project = await getProject(slug);
+  const project = await getPublishedProjectBySlug(slug);
 
   if (!project) {
     notFound();

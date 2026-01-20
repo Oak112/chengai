@@ -1,7 +1,6 @@
 import Link from 'next/link';
-import { supabase, DEFAULT_OWNER_ID } from '@/lib/supabase';
+import { getPublishedProjects } from '@/lib/content';
 import { ExternalLink, Github, FileText } from 'lucide-react';
-import type { Project } from '@/types';
 
 export const metadata = {
   title: 'Projects | Charlie Cheng',
@@ -10,25 +9,8 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic';
 
-async function getProjects(): Promise<Project[]> {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('*')
-    .eq('owner_id', DEFAULT_OWNER_ID)
-    .eq('status', 'published')
-    .is('deleted_at', null)
-    .order('display_order', { ascending: true });
-
-  if (error) {
-    console.error('Error fetching projects:', error);
-    return [];
-  }
-
-  return data || [];
-}
-
 export default async function ProjectsPage() {
-  const projects = await getProjects();
+  const projects = await getPublishedProjects();
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
