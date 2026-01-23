@@ -149,6 +149,17 @@ async function main() {
       message: 'Give me a quick overview of your strongest projects.',
     },
     {
+      id: 'ai-projects-all',
+      mode: 'auto',
+      message:
+        'List all your AI-related projects and demos with direct links. Keep each item to 1–2 sentences.',
+    },
+    {
+      id: 'ai-projects-all-zh',
+      mode: 'auto',
+      message: '把你所有 AI 相关的项目和 demo 列出来，带链接，每条用英文一两句简介。',
+    },
+    {
       id: 'work-experience',
       mode: 'auto',
       message: 'List your work experience (including internships) and the 2–3 highest-signal highlights for each.',

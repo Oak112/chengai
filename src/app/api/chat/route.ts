@@ -3,21 +3,19 @@ import { retrieveContext } from '@/lib/rag';
 import { streamChat, CHAT_SYSTEM_PROMPT } from '@/lib/ai';
 import { supabaseAdmin, DEFAULT_OWNER_ID, isSupabaseConfigured } from '@/lib/supabase';
 import { extractSkillsFromText } from '@/lib/skills-import';
+import {
+  getPublishedArticles,
+  getPublishedExperiences,
+  getPublishedProjects,
+  getPublicStories,
+  getSkills,
+} from '@/lib/content';
 import type { Article, ChunkReference, Experience, Project, Skill, Story } from '@/types';
 
 export const runtime = 'nodejs';
 
 const MAX_FALLBACK_SNIPPET_CHARS = 1800;
 const MAX_RETRIEVAL_QUERY_CHARS = 2600;
-
-type ChatIntent =
-  | 'internships'
-  | 'skills'
-  | 'projects'
-  | 'cover_letter'
-  | 'job_search'
-  | 'all_resources'
-  | 'general';
 
 function buildFallbackSnippet(text: string): string {
   const normalized = String(text || '').trim();
@@ -30,89 +28,6 @@ function clampText(value: string, maxChars: number): string {
   const v = String(value || '').trim();
   if (v.length <= maxChars) return v;
   return `${v.slice(0, maxChars)}…`;
-}
-
-function detectSourceTypes(message: string): string[] | undefined {
-  const m = message.toLowerCase();
-  const has = (re: RegExp) => re.test(message) || re.test(m);
-  const types: string[] = [];
-  const add = (t: string) => {
-    if (!types.includes(t)) types.push(t);
-  };
-
-  if (
-    has(
-      /\bproject(s)?\b|\bportfolio\b|\bcase study\b|\bside project\b|\bproduct(s)?\b|\bapp(s)?\b|\bwebsite(s)?\b|\bsite(s)?\b|\bopen[- ]source\b|\boss\b|\bthings?\s+(?:you'?ve|you have|you)\s+(?:built|made)\b|\bwhat\s+(?:have you|did you)\s+(?:build|make)\b|\bwhat\s+do you\s+build\b/
-    )
-  ) {
-    add('project');
-  }
-  if (has(/\barticle(s)?\b|\bblog\b|\bpost(s)?\b/)) add('article');
-  if (has(/\bstory\b|\bstories\b|\bstar\b|\bbehavior(al)?\b/)) add('story');
-  if (has(/\bresume\b|\bcv\b/)) add('resume');
-  if (has(/\bexperience\b|\bwork\b|\bemployment\b|\bintern(ship)?\b|\bprofessional\b|\bjob\b/)) add('experience');
-  if (has(/\bskill(s)?\b|\btech stack\b|\bstack\b|\bproficien/)) add('skill');
-  if (types.length === 0) {
-    const inferredSkills = extractSkillsFromText(message);
-    if (inferredSkills.length > 0) add('skill');
-  }
-
-  return types.length > 0 ? types : undefined;
-}
-
-function detectChatIntent(message: string): ChatIntent {
-  const raw = String(message || '').trim();
-  // For long pastes (e.g., full job descriptions), intent keywords may appear inside the JD itself ("apply", "application").
-  // To avoid misclassification, bias intent detection toward the user’s actual ask, which is usually at the beginning or end.
-  const intentText =
-    raw.length > 900 ? `${raw.slice(0, 320)}\n...\n${raw.slice(-640)}` : raw;
-
-  const m = intentText.toLowerCase();
-  const has = (re: RegExp) => re.test(m);
-
-  if (has(/\bgo through\b|\ball resources\b|\beverything\b|\bread all\b|\buse all\b/)) return 'all_resources';
-  if (has(/\bintern(ship)?s?\b|\bintern\b|\bco-?op\b/)) return 'internships';
-
-  const explicitApplicationRequest =
-    has(/\bcover letter\b|\breferral\b|\boutreach\b|\bintro email\b|\bcold email\b|\blinkedin message\b|\bapplication answers?\b|\bautofill\b|\btailor(ing)?\b/) ||
-    // "apply/application" is too common in pasted JDs; only treat as intent when user is explicitly asking for help applying.
-    has(/\b(help|can you|could you|please)\s+(me\s+)?(apply|with my application)\b/) ||
-    has(/\b(apply|applying)\s+(to|for)\b/) ||
-    has(/\bwrite\b.*\b(cover letter|referral|outreach|email)\b/) ||
-    has(/\bdraft\b.*\b(cover letter|referral|outreach|email)\b/) ||
-    has(/\bgenerate\b.*\b(cover letter|referral|outreach|email)\b/);
-
-  // If the user is asking "do you match / fit", treat it as a match request rather than an application-writing request.
-  const explicitMatchRequest =
-    has(/\bdo you match\b|\bhow well\b|\bam i a good fit\b|\bfit for\b|\bmatch (?:this|it)\b|\bresume match\b|\bkeyword match\b/) ||
-    has(/\bmatch\b.*\brole\b/) ||
-    has(/\bdo i match\b|\bhow well do i match\b/);
-
-  if (explicitMatchRequest) return 'job_search';
-  if (explicitApplicationRequest) return 'cover_letter';
-
-  if (has(/\bjob\b|\bjd\b|\bmatch\b|\brole\b|\brecruiter\b|\bhiring\b/)) return 'job_search';
-  if (
-    has(
-      /\bproject(s)?\b|\bportfolio\b|\bcase study\b|\bside project\b|\bproduct(s)?\b|\bapp(s)?\b|\bwebsite(s)?\b|\bopen[- ]source\b|\boss\b|\bthings?\s+(?:you'?ve|you have|you)\s+(?:built|made)\b|\bwhat\s+(?:have you|did you)\s+(?:build|make)\b|\bwhat\s+do you\s+build\b|\bthings?\s+i'?ve\s+built\b/
-    )
-  ) {
-    return 'projects';
-  }
-
-  const extractedSkills = extractSkillsFromText(message);
-  const skillMentioned = extractedSkills.length > 0;
-  const skillQuestion =
-    has(/\bskill(s)?\b|\btech stack\b|\bstack\b|\bproficien/) ||
-    (skillMentioned &&
-      has(
-        /\bhow well\b|\bhow good\b|\bexperience with\b|\bfamiliar with\b|\bdo you know\b|\bhave you used\b|\bused\b|\bworked with\b/
-      )) ||
-    (skillMentioned && m.trim().split(/\s+/).length <= 3);
-
-  if (skillQuestion) return 'skills';
-
-  return 'general';
 }
 
 function buildRetrievalQuery(args: {
@@ -142,204 +57,26 @@ function buildRetrievalQuery(args: {
 }
 
 function buildRetrievalConfig(args: {
-  message: string;
   mode?: 'auto' | 'tech' | 'behavior';
-  requestedSourceTypes?: string[];
   hasSessionContext: boolean;
-}): { sourceTypes?: string[]; topK: number; intent: ChatIntent } {
-  const intent = detectChatIntent(args.message);
-
+}): { sourceTypes?: string[]; topK: number } {
   if (args.mode === 'behavior') {
-    return { intent, topK: 10, sourceTypes: ['story', 'experience', 'resume'] };
+    return { topK: 12, sourceTypes: ['story', 'experience', 'resume'] };
   }
 
   if (args.mode === 'tech') {
-    return { intent, topK: 10, sourceTypes: ['project', 'article', 'resume', 'skill', 'experience'] };
+    return { topK: 12, sourceTypes: ['project', 'experience', 'article', 'resume', 'skill'] };
   }
 
-  if (intent === 'all_resources') {
-    return {
-      intent,
-      topK: 16,
-      sourceTypes: ['resume', 'experience', 'project', 'story', 'article', 'skill'],
-    };
-  }
-
-  if (intent === 'internships') {
-    return { intent, topK: 12, sourceTypes: ['experience', 'resume', 'story'] };
-  }
-
-  if (intent === 'projects') {
-    return { intent, topK: 10, sourceTypes: ['project', 'resume', 'article'] };
-  }
-
-  if (intent === 'skills') {
-    return { intent, topK: 10, sourceTypes: ['skill', 'resume', 'project', 'experience'] };
-  }
-
-  if (intent === 'cover_letter') {
-    return {
-      intent,
-      topK: 14,
-      sourceTypes: ['resume', 'experience', 'project', 'story', 'article', 'skill'],
-    };
-  }
-
-  if (intent === 'job_search' || args.hasSessionContext) {
-    return {
-      intent,
-      topK: 12,
-      sourceTypes: ['resume', 'experience', 'project', 'story', 'skill', 'article'],
-    };
-  }
-
-  if (Array.isArray(args.requestedSourceTypes) && args.requestedSourceTypes.length > 0) {
-    return {
-      intent,
-      topK: 9,
-      sourceTypes: Array.from(new Set([...args.requestedSourceTypes, 'resume', 'skill', 'experience'])),
-    };
-  }
-
-  return { intent, topK: 9, sourceTypes: undefined };
+  // Auto mode: keep it broad and let retrieval + the model decide what matters.
+  // If the user provided a long session context (JDs, prior reports), retrieve a bit more.
+  return { topK: args.hasSessionContext ? 14 : 12, sourceTypes: undefined };
 }
 
-function buildIntentInstruction(intent: ChatIntent): string {
-  switch (intent) {
-    case 'internships':
-      return (
-        '\n\nAnswer style (internships): Give a concise list of internships/work experiences. ' +
-        'For each, include company, role, dates (if available), and 2 to 3 concrete highlights. ' +
-        'If dates or metrics are missing in SOURCES, omit them instead of guessing.'
-      );
-    case 'skills':
-      return (
-        '\n\nAnswer style (skills): List the top 5 to 8 skills and briefly connect each to at least one project/experience when possible. ' +
-        'Prefer specificity over generic statements.'
-      );
-    case 'projects':
-      return (
-        '\n\nAnswer style (projects): List 3 to 6 representative things I’ve built (apps / websites / projects). ' +
-        'If ChengAI is available in SOURCES, include it. ' +
-        'For each: one sentence on what it is, one sentence on what I built or did, and a URL when available. ' +
-        'If asked about open source and none is shown in SOURCES, say so plainly.'
-      );
-    case 'cover_letter':
-      return (
-        '\n\nAnswer style (applications): Follow the user’s request precisely (cover letter vs. outreach vs. resume tailoring vs. application answers). ' +
-        'Do NOT output multiple artifacts at once unless explicitly asked. ' +
-        'Write in a real application voice (not a meta analysis). Keep it skimmable and specific.'
-      );
-    case 'job_search':
-      return (
-        '\n\nAnswer style (job match): Answer the direct question first (fit/match), then support it with evidence. ' +
-        'If the user asked a yes/no question (e.g., “Do you match it?”), answer yes/no in the first sentence. ' +
-        'Keep it concise: one short fit paragraph, 4 to 8 bullets (strengths and gaps), and one suggested next step. ' +
-        'Do NOT draft a cover letter, resume tailoring plan, or application answers unless the user explicitly asks. ' +
-        'At most, offer a single follow up like: “Want me to draft a cover letter or outreach note based on this JD?”'
-      );
-    case 'all_resources':
-      return (
-        '\n\nAnswer style (all resources): Summarize across resume, experience, projects, skills, and writing. ' +
-        'Organize the answer into 3 to 5 sections with short bullets (no long walls of text).'
-      );
-    default:
-      return '\n\nAnswer style: Be direct and helpful. Offer a concrete answer first, then optional next steps.';
-  }
-}
-
-function countSourcesByType(sources: ChunkReference[], type: string): number {
-  return (sources || []).filter((s) => s?.source_type === type).length;
-}
-
-function hasProjectSlug(sources: ChunkReference[], slug: string): boolean {
-  return (sources || []).some((s) => s?.source_type === 'project' && s?.source_slug === slug);
-}
-
-function getCatalogAugmentationTypes(args: {
-  intent: ChatIntent;
-  sources: ChunkReference[];
-  userMessage: string;
-}): string[] {
-  const types = new Set<string>();
-
-  const hasBroadBuiltQuestion =
-    /\bthings?\s+(?:you'?ve|you have|you)\s+(?:built|made)\b|\bwhat\s+(?:have you|did you)\s+(?:build|make)\b|\bwhat\s+do you\s+build\b|\bapps?\b|\bwebsites?\b|\bopen[- ]source\b|\boss\b/i.test(
-      args.userMessage
-    );
-
-  if (args.intent === 'projects') {
-    if (countSourcesByType(args.sources, 'project') < 3) types.add('project');
-    if (hasBroadBuiltQuestion && !hasProjectSlug(args.sources, 'chengai')) types.add('project');
-    if (countSourcesByType(args.sources, 'resume') < 1) types.add('resume');
-  }
-
-  if (args.intent === 'skills') {
-    if (countSourcesByType(args.sources, 'skill') < 5) types.add('skill');
-    if (countSourcesByType(args.sources, 'resume') < 1) types.add('resume');
-  }
-
-  if (args.intent === 'internships') {
-    if (countSourcesByType(args.sources, 'experience') < 2) types.add('experience');
-    if (countSourcesByType(args.sources, 'resume') < 1) types.add('resume');
-  }
-
-  if (args.intent === 'all_resources') {
-    const needs: Array<[string, number]> = [
-      ['resume', 1],
-      ['experience', 1],
-      ['project', 2],
-      ['skill', 4],
-      ['article', 1],
-    ];
-    for (const [t, min] of needs) {
-      if (countSourcesByType(args.sources, t) < min) types.add(t);
-    }
-  }
-
-  return Array.from(types);
-}
-
-function getSourceKey(source: ChunkReference): string {
-  const slugOrTitle = source.source_slug || source.source_title || source.source_id || '';
-  return `${source.source_type || 'unknown'}:${slugOrTitle}`;
-}
-
-function mergeSources(primary: ChunkReference[], extras: ChunkReference[], limit: number): ChunkReference[] {
-  const out: ChunkReference[] = [];
-  const seen = new Set<string>();
-
-  for (const s of primary || []) {
-    const key = getSourceKey(s);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(s);
-  }
-
-  for (const s of extras || []) {
-    const key = getSourceKey(s);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(s);
-  }
-
-  return out.slice(0, Math.max(1, Math.min(limit, 16)));
-}
-
-function sortSourcesForIntent(intent: ChatIntent, sources: ChunkReference[]): ChunkReference[] {
-  const orderByIntent: Record<ChatIntent, string[]> = {
-    projects: ['project', 'article', 'resume', 'experience', 'skill', 'story'],
-    skills: ['skill', 'experience', 'project', 'resume', 'article', 'story'],
-    internships: ['experience', 'resume', 'story', 'project', 'skill', 'article'],
-    cover_letter: ['resume', 'experience', 'project', 'story', 'skill', 'article'],
-    job_search: ['resume', 'experience', 'project', 'skill', 'article', 'story'],
-    all_resources: ['resume', 'experience', 'project', 'skill', 'article', 'story'],
-    general: ['resume', 'project', 'experience', 'skill', 'article', 'story'],
-  };
-
-  const order = orderByIntent[intent] || [];
+function sortSources(sources: ChunkReference[]): ChunkReference[] {
+  const typeOrder = ['resume', 'project', 'experience', 'skill', 'article', 'story', 'index'];
   const idx = (t: string) => {
-    const i = order.indexOf(t);
+    const i = typeOrder.indexOf(t);
     return i === -1 ? 999 : i;
   };
 
@@ -347,8 +84,8 @@ function sortSourcesForIntent(intent: ChatIntent, sources: ChunkReference[]): Ch
   cloned.sort((a, b) => {
     const diff = idx(a.source_type) - idx(b.source_type);
     if (diff !== 0) return diff;
-    // Within projects, keep ChengAI near the front for “what have you built” style questions.
-    if (intent === 'projects' && a.source_type === 'project' && b.source_type === 'project') {
+    // Keep ChengAI near the front within projects to improve “what have you built” recall.
+    if (a.source_type === 'project' && b.source_type === 'project') {
       const aIsChengai = a.source_slug === 'chengai';
       const bIsChengai = b.source_slug === 'chengai';
       if (aIsChengai !== bIsChengai) return aIsChengai ? -1 : 1;
@@ -401,6 +138,74 @@ function formatContextFromSources(sources: ChunkReference[]): string {
       return `SOURCE ${idx + 1}\nType: ${r.source_type}\nTitle: ${r.source_title}${slugPart}${urlLine}\nSnippet: ${r.content_preview}`;
     })
     .join('\n\n');
+}
+
+async function buildPortfolioIndexText(): Promise<string> {
+  if (!isSupabaseConfigured()) return '';
+
+  const [projects, experiences, skills, articles, stories] = await Promise.all([
+    getPublishedProjects(),
+    getPublishedExperiences(),
+    getSkills(),
+    getPublishedArticles(),
+    getPublicStories(),
+  ]);
+
+  const base = (process.env.NEXT_PUBLIC_SITE_URL || 'https://chengai-tianle.ai-builders.space').replace(/\/$/, '');
+  const toPublicUrl = (path: string) => {
+    if (!path) return path;
+    if (/^https?:\/\//i.test(path)) return path;
+    return `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+  };
+
+  const lines: string[] = [];
+  lines.push('PORTFOLIO INDEX (navigation only, not proof for metrics)');
+  lines.push(`Website: ${toPublicUrl('/')}`);
+  lines.push(`Resume: ${toPublicUrl('/api/resume')}`);
+
+  if (projects.length > 0) {
+    lines.push('\nProjects:');
+    for (const p of projects) {
+      const url = p.slug ? toPublicUrl(`/projects/${p.slug}`) : null;
+      const parts = [p.title, url ? `URL: ${url}` : null, p.demo_url ? `Demo: ${p.demo_url}` : null, p.repo_url ? `Repo: ${p.repo_url}` : null, p.article_url ? `Article: ${p.article_url}` : null].filter(Boolean);
+      lines.push(`* ${parts.join(' | ')}`);
+    }
+  }
+
+  if (experiences.length > 0) {
+    lines.push('\nExperience:');
+    for (const exp of experiences.slice(0, 8)) {
+      const title = `${exp.role} @ ${exp.company}`;
+      lines.push(`* ${title}`);
+    }
+  }
+
+  if (skills.length > 0) {
+    lines.push('\nSkills (top):');
+    for (const sk of skills
+      .slice()
+      .sort((a, b) => (b.proficiency || 0) - (a.proficiency || 0))
+      .slice(0, 18)) {
+      lines.push(`* ${sk.name}`);
+    }
+  }
+
+  if (articles.length > 0) {
+    lines.push('\nArticles:');
+    for (const a of articles.slice(0, 8)) {
+      const url = a.slug ? toPublicUrl(`/articles/${a.slug}`) : null;
+      lines.push(`* ${a.title}${url ? ` | URL: ${url}` : ''}`);
+    }
+  }
+
+  if (stories.length > 0) {
+    lines.push('\nStories:');
+    for (const s of stories.slice(0, 8)) {
+      lines.push(`* ${s.title}`);
+    }
+  }
+
+  return clampText(lines.join('\n'), 4200);
 }
 
 function buildHardGuardrails(userMessage: string): string {
@@ -463,7 +268,7 @@ async function getCatalogFallbackSources(sourceTypes?: string[]): Promise<ChunkR
       .is('deleted_at', null)
       .order('is_featured', { ascending: false })
       .order('display_order', { ascending: true })
-      .limit(4);
+      .limit(12);
 
     const rows = ((data as Project[] | null) || []).slice();
     const needsChengai = !rows.some((p) => p.slug === 'chengai');
@@ -616,7 +421,7 @@ async function getCatalogFallbackSources(sourceTypes?: string[]): Promise<ChunkR
   const MAX_SOURCES = 8;
   const caps: Record<string, number> = {
     resume: 1,
-    project: 3,
+    project: 5,
     experience: 2,
     skill: 4,
     article: 2,
@@ -669,11 +474,8 @@ export async function POST(request: NextRequest) {
     // TODO: Implement proper rate limiting with Redis
 
     // Retrieve relevant context using RAG
-    const requestedSourceTypes = detectSourceTypes(message);
     const retrievalConfig = buildRetrievalConfig({
-      message,
       mode,
-      requestedSourceTypes,
       hasSessionContext: Boolean(sessionContextText),
     });
 
@@ -689,34 +491,25 @@ export async function POST(request: NextRequest) {
       retrievalConfig.sourceTypes
     );
 
+    const portfolioIndexText = await buildPortfolioIndexText();
+
     // If RAG returns nothing (common when content exists but embeddings haven't been built yet),
     // fall back to a small “catalog” of published content so the assistant can still list things.
     const isFallbackCatalog = !sources || sources.length === 0;
-    let isCatalogAugmented = false;
     if (!sources || sources.length === 0) {
       sources = await getCatalogFallbackSources(retrievalConfig.sourceTypes);
-      sources = sortSourcesForIntent(retrievalConfig.intent, sources);
+      sources = sortSources(sources);
       context = formatContextFromSources(sources);
     } else {
-      const augmentationTypes = getCatalogAugmentationTypes({
-        intent: retrievalConfig.intent,
-        sources,
-        userMessage: message,
-      });
-
-      if (augmentationTypes.length > 0) {
-        const extra = await getCatalogFallbackSources(augmentationTypes);
-        const merged = mergeSources(sources, extra, 12);
-        sources = sortSourcesForIntent(retrievalConfig.intent, merged);
-        context = formatContextFromSources(sources);
-        isCatalogAugmented = true;
-      } else {
-        sources = sortSourcesForIntent(retrievalConfig.intent, sources);
-        context = formatContextFromSources(sources);
-      }
+      sources = sortSources(sources);
+      context = formatContextFromSources(sources);
     }
 
     const hasEvidence = Array.isArray(sources) && sources.length > 0;
+
+    if (portfolioIndexText) {
+      context = `${context}\n\n${portfolioIndexText}`;
+    }
 
     // Build conversation context
     const historyContext = conversationHistory
@@ -728,14 +521,13 @@ export async function POST(request: NextRequest) {
 
     const augmentedSystemPrompt = hasEvidence
       ? `${CHAT_SYSTEM_PROMPT}${
-          isFallbackCatalog || isCatalogAugmented
+          isFallbackCatalog
             ? '\n\nImportant: some SOURCES may be high-level catalog items (titles, summaries, and links), not verbatim evidence for every detail. Only claim what is explicitly supported by the snippets. If details are missing, say so and point to the most relevant pages to read next.'
             : ''
         }`
       : `${CHAT_SYSTEM_PROMPT}\n\nImportant: no directly relevant sources were retrieved for this question. State that clearly and suggest the most relevant pages to check (projects / articles / skills), or ask the user to provide more context.`;
 
     const hardGuardrails = buildHardGuardrails(message);
-    const intentInstruction = buildIntentInstruction(retrievalConfig.intent);
 
     const modeInstruction =
       mode === 'behavior'
@@ -772,7 +564,7 @@ export async function POST(request: NextRequest) {
 
           // Stream the chat response
           for await (const tokenChunk of streamChat(
-            augmentedSystemPrompt + modeInstruction + intentInstruction + sessionContextInstruction + hardGuardrails,
+            augmentedSystemPrompt + modeInstruction + sessionContextInstruction + hardGuardrails,
             userPrompt,
             context
           )) {
