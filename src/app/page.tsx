@@ -1,7 +1,7 @@
-import { MessageSquare, Briefcase, ArrowRight, Code, FileText, Download, Building2 } from "lucide-react";
-import ResumeDownloadLink from "@/components/ResumeDownloadLink";
+import { MessageSquare, Briefcase, ArrowRight, Code, FileText, Building2 } from "lucide-react";
 import TrackedLink from "@/components/TrackedLink";
 import HeroIdentityBar from "@/components/HeroIdentityBar";
+import ResumePreviewCard from "@/components/ResumePreviewCard";
 
 export default function Home() {
   return (
@@ -23,7 +23,7 @@ export default function Home() {
             </h1>
 
             <p className="mx-auto mt-6 max-w-2xl text-lg text-zinc-600 dark:text-zinc-400">
-              Full-stack developer building evidence-first AI products and polished web experiences.
+              AI-native student and engineer building powerful AI products with AI.
               Chat with my AI twin, match a job description, or run a mock interview.
             </p>
 
@@ -52,14 +52,9 @@ export default function Home() {
               </TrackedLink>
             </div>
 
-            {/* Resume Download */}
-            <div className="mt-6">
-              <ResumeDownloadLink
-                className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
-              >
-                <Download className="h-4 w-4" />
-                Download My Resume (PDF)
-              </ResumeDownloadLink>
+            {/* Resume Preview */}
+            <div className="mt-8">
+              <ResumePreviewCard />
             </div>
 
             {/* Playful shortcuts */}

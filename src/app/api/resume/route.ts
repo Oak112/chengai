@@ -1,16 +1,25 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
 
-export async function GET() {
+function getContentDisposition(request: NextRequest, fileName: string): string {
+  const url = new URL(request.url);
+  const download = url.searchParams.get('download');
+  const forceDownload = download === '1' || download?.toLowerCase() === 'true';
+  const type = forceDownload ? 'attachment' : 'inline';
+  return `${type}; filename=\"${fileName}\"`;
+}
+
+export async function GET(request: NextRequest) {
   try {
     const bucket = process.env.SUPABASE_RESUME_BUCKET || 'chengai-resume';
     const objectPath = process.env.SUPABASE_RESUME_PATH || 'resume.pdf';
-    const downloadName = 'Charlie_Cheng_resume.pdf';
+    const downloadName = 'Resume_CharlieCheng.pdf';
     const isProd = process.env.NODE_ENV === 'production';
+    const contentDisposition = getContentDisposition(request, downloadName);
 
     if (isSupabaseConfigured()) {
       try {
@@ -23,7 +32,7 @@ export async function GET() {
           return new NextResponse(fileBuffer, {
             headers: {
               'Content-Type': contentType,
-              'Content-Disposition': `attachment; filename=\"${downloadName}\"`,
+              'Content-Disposition': contentDisposition,
               'Cache-Control': 'public, max-age=3600',
             },
           });
@@ -45,7 +54,7 @@ export async function GET() {
     return new NextResponse(fileBuffer, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename=\"${downloadName}\"`,
+        'Content-Disposition': contentDisposition,
         'Cache-Control': 'public, max-age=3600',
       },
     });

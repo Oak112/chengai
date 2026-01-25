@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { trackEvent } from '@/lib/analytics';
 
@@ -12,12 +11,12 @@ export default function ResumeDownloadLink({
   children: ReactNode;
 }) {
   return (
-    <Link
-      href="/api/resume"
+    <a
+      href="/api/resume?download=1"
       onClick={() => trackEvent('resume_download_clicked')}
       className={className}
     >
       {children}
-    </Link>
+    </a>
   );
 }

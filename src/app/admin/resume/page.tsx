@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { FileUp, Loader2, CheckCircle, AlertCircle, Trash2, Download } from 'lucide-react';
 
 function getCookieValue(name: string): string | null {
@@ -149,14 +148,15 @@ export default function AdminResumePage() {
 
           <div className="flex flex-wrap items-center gap-2">
             {resume?.exists ? (
-              <Link
-                href="/api/resume"
+              <a
+                href="/api/resume?download=1"
                 target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
               >
                 <Download className="h-4 w-4" />
                 Download
-              </Link>
+              </a>
             ) : (
               <span className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-500 opacity-60 dark:border-zinc-700 dark:text-zinc-500">
                 <Download className="h-4 w-4" />
