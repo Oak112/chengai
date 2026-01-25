@@ -1,6 +1,7 @@
 import { MessageSquare, Briefcase, ArrowRight, Code, FileText, Download, Building2 } from "lucide-react";
 import ResumeDownloadLink from "@/components/ResumeDownloadLink";
 import TrackedLink from "@/components/TrackedLink";
+import HeroIdentityBar from "@/components/HeroIdentityBar";
 
 export default function Home() {
   return (
@@ -25,6 +26,8 @@ export default function Home() {
               Full-stack developer building evidence-first AI products and polished web experiences.
               Chat with my AI twin, match a job description, or run a mock interview.
             </p>
+
+            <HeroIdentityBar />
 
             {/* CTA Buttons */}
             <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:justify-center">
