@@ -18,7 +18,7 @@ export default function Home() {
             </h1>
 
             <p className="mx-auto mt-6 max-w-2xl text-lg text-zinc-600 dark:text-zinc-400">
-              AI-native student and engineer building powerful AI products with AI.
+              AI-native student and engineer building powerful AI products.
               Chat with my AI twin, match a job description, or run a mock interview.
             </p>
 
