@@ -90,8 +90,46 @@ export async function retrieveContext(
     return { results: (data as Chunk[]) || null, error };
   })();
 
-  const [{ results: vectorResults, error: vectorError }, { results: ftsResults, error: ftsError }] =
-    await Promise.all([vectorPromise, ftsPromise]);
+  const [
+    { results: vectorResultsInitial, error: vectorErrorInitial },
+    { results: ftsResults, error: ftsError },
+  ] = await Promise.all([vectorPromise, ftsPromise]);
+
+  let vectorResults = vectorResultsInitial;
+  let vectorError = vectorErrorInitial;
+
+  // Two-stage retrieval: if both vector and full-text return nothing, retry vector search with a
+  // lower threshold to avoid "no evidence" on short, high-level questions (e.g., major/GPA/email).
+  const hasAnyFts = Array.isArray(ftsResults) && ftsResults.length > 0;
+  const hasAnyVector = Array.isArray(vectorResults) && vectorResults.length > 0;
+
+  if (!hasAnyFts && (!hasAnyVector || vectorError)) {
+    try {
+      const baseRpcArgs: Record<string, unknown> = {
+        query_embedding: queryEmbedding,
+        match_threshold: 0.0,
+        match_count: topK,
+        p_owner_id: DEFAULT_OWNER_ID,
+      };
+
+      const rpcArgs =
+        Array.isArray(sourceTypes) && sourceTypes.length > 0
+          ? { ...baseRpcArgs, p_source_types: sourceTypes }
+          : baseRpcArgs;
+
+      let { data, error } = await supabaseAdmin.rpc('match_chunks', rpcArgs);
+      if (error && rpcArgs !== baseRpcArgs) {
+        ({ data, error } = await supabaseAdmin.rpc('match_chunks', baseRpcArgs));
+      }
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        vectorResults = data as Chunk[];
+        vectorError = null;
+      }
+    } catch (retryError) {
+      console.warn('Vector search retry failed:', retryError);
+    }
+  }
 
   if (vectorError) console.error('Vector search error:', vectorError);
   if (ftsError) console.error('FTS search error:', ftsError);
