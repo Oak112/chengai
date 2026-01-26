@@ -54,7 +54,7 @@ export default function HeroIdentityBar() {
       <div className="flex flex-wrap items-center justify-center gap-2">
         <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/70 px-3 py-1.5 text-sm font-medium text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-200">
           <GraduationCap className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
-          NYU (M.S., Urban Data Science), Graduate at May 2026
+          NYU (M.S.), Graduate at May 2026
         </span>
 
         <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50/70 px-3 py-1.5 text-sm font-medium text-emerald-800 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200">
