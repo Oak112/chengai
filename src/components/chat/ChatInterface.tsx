@@ -518,7 +518,7 @@ export default function ChatInterface({ initialMessage, initialMode, startFresh 
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask me anything…"
-            className="flex-1 resize-none rounded-2xl border border-zinc-200 bg-white/80 px-4 py-3 text-sm text-zinc-900 shadow-sm placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-white dark:placeholder:text-zinc-500"
+            className="flex-1 resize-none rounded-2xl border border-zinc-200 bg-white/80 px-4 py-3 text-base text-zinc-900 shadow-sm placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-white dark:placeholder:text-zinc-500 sm:text-sm"
             rows={1}
             disabled={isLoading}
           />

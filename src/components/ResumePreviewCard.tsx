@@ -10,9 +10,16 @@ const RESUME_DOWNLOAD_URL = '/api/resume?download=1';
 export default function ResumePreviewCard() {
   const titleId = useId();
   const [isOpen, setIsOpen] = useState(false);
+  const [isSmallScreen, setIsSmallScreen] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const onOpen = useCallback(() => {
+    if (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 640px)').matches) {
+      // On small screens, open the PDF viewer directly for a better mobile experience.
+      trackEvent('resume_preview_opened', { page: 'home', surface: 'mobile_fullscreen' });
+      window.location.assign(RESUME_PREVIEW_URL);
+      return;
+    }
     trackEvent('resume_preview_opened', { page: 'home' });
     setIsOpen(true);
   }, []);
@@ -20,6 +27,15 @@ export default function ResumePreviewCard() {
   const onClose = useCallback(() => {
     trackEvent('resume_preview_closed', { page: 'home' });
     setIsOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(max-width: 640px)');
+    const onChange = () => setIsSmallScreen(mq.matches);
+    onChange();
+    mq.addEventListener?.('change', onChange);
+    return () => mq.removeEventListener?.('change', onChange);
   }, []);
 
   useEffect(() => {
@@ -85,12 +101,31 @@ export default function ResumePreviewCard() {
         </div>
 
         <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
-          <iframe
-            src={RESUME_PREVIEW_URL}
-            title="Resume preview"
-            className="h-[420px] w-full"
-            loading="lazy"
-          />
+          {isSmallScreen ? (
+            <button
+              type="button"
+              onClick={onOpen}
+              className="flex h-[360px] w-full items-center justify-center gap-3 px-6 text-sm font-semibold text-zinc-700 transition-colors hover:bg-white/60 dark:text-zinc-200 dark:hover:bg-zinc-950/40"
+              aria-label="Open resume preview"
+            >
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 text-white shadow-sm">
+                <FileText className="h-5 w-5" />
+              </span>
+              <span className="text-left">
+                <span className="block text-sm font-semibold">Tap to open resume</span>
+                <span className="mt-0.5 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  Opens a full screen viewer for the best mobile experience.
+                </span>
+              </span>
+            </button>
+          ) : (
+            <iframe
+              src={`${RESUME_PREVIEW_URL}#view=FitH`}
+              title="Resume preview"
+              className="h-[420px] w-full"
+              loading="lazy"
+            />
+          )}
         </div>
       </div>
 
@@ -134,7 +169,7 @@ export default function ResumePreviewCard() {
             </div>
 
             <iframe
-              src={RESUME_PREVIEW_URL}
+              src={`${RESUME_PREVIEW_URL}#view=FitH`}
               title="Resume full view"
               className="h-[85vh] w-full"
             />
@@ -144,4 +179,3 @@ export default function ResumePreviewCard() {
     </>
   );
 }
-

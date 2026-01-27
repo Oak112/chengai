@@ -1,10 +1,52 @@
 type GAParamsValue = string | number | boolean | null | undefined;
 
-export const GA_MEASUREMENT_ID =
-  process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ||
-  process.env.NEXT_PUBLIC_GA_ID ||
-  // Fallback for the live ChengAI property (non-secret, override via env if needed).
-  'G-QYQWCNVYZX';
+const DEFAULT_GA_MEASUREMENT_IDS = [
+  // Existing live property (do not remove)
+  'G-QYQWCNVYZX',
+  // chengai.me property (added, keep both)
+  'G-5Q5KK2QLKL',
+];
+
+function parseMeasurementIds(value?: string | null): string[] {
+  if (!value) return [];
+  return value
+    .split(/[,\s]+/g)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function normalizeMeasurementId(id: string): string | null {
+  const trimmed = id.trim();
+  if (!trimmed) return null;
+  // GA4 measurement ids look like "G-XXXXXXXXXX". Keep validation loose but safe.
+  if (!/^G-[A-Z0-9]+$/i.test(trimmed)) return null;
+  return trimmed.toUpperCase();
+}
+
+function buildGaMeasurementIds(): string[] {
+  const ids = [
+    ...parseMeasurementIds(process.env.NEXT_PUBLIC_GA_MEASUREMENT_IDS || process.env.NEXT_PUBLIC_GA_IDS),
+    ...parseMeasurementIds(process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || process.env.NEXT_PUBLIC_GA_ID),
+    ...DEFAULT_GA_MEASUREMENT_IDS,
+  ];
+
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of ids) {
+    const normalized = normalizeMeasurementId(raw);
+    if (!normalized) continue;
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+
+  return out;
+}
+
+export const GA_MEASUREMENT_IDS = buildGaMeasurementIds();
+
+// Backward-compatible single id (primary). Used to load the gtag.js script.
+export const GA_MEASUREMENT_ID = GA_MEASUREMENT_IDS[0] || '';
 
 declare global {
   interface Window {
@@ -40,19 +82,25 @@ function sanitizeParams(meta?: Record<string, unknown>): Record<string, GAParams
 }
 
 export function gaPageView(url: string) {
-  if (!GA_MEASUREMENT_ID) return;
+  if (GA_MEASUREMENT_IDS.length === 0) return;
   if (typeof window === 'undefined') return;
   if (typeof window.gtag !== 'function') return;
 
-  window.gtag('config', GA_MEASUREMENT_ID, { page_path: url });
+  for (const id of GA_MEASUREMENT_IDS) {
+    window.gtag('config', id, { page_path: url });
+  }
 }
 
 export function gaEvent(name: string, meta?: Record<string, unknown>) {
-  if (!GA_MEASUREMENT_ID) return;
+  if (GA_MEASUREMENT_IDS.length === 0) return;
   if (typeof window === 'undefined') return;
   if (typeof window.gtag !== 'function') return;
 
-  const params = sanitizeParams(meta);
-  window.gtag('event', name, params || {});
-}
+  const params = sanitizeParams(meta) || {};
 
+  // Send explicitly to each configured GA4 property, so we keep the legacy property
+  // while adding new domains/streams.
+  for (const id of GA_MEASUREMENT_IDS) {
+    window.gtag('event', name, { ...params, send_to: id });
+  }
+}
