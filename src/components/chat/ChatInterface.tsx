@@ -356,7 +356,7 @@ export default function ChatInterface({ initialMessage, initialMode, startFresh 
             <button
               onClick={clearChat}
               disabled={isLoading || messages.length === 0}
-              className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-zinc-700 shadow-sm hover:bg-white disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-200 dark:hover:bg-zinc-950"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-zinc-700 shadow-sm hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-200 dark:hover:bg-zinc-950"
               aria-label="New Chat"
             >
               <FilePenLine className="h-3.5 w-3.5" />
