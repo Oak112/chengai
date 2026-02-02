@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Send, Loader2, User, Bot, BookOpen, Sparkles, Trash2 } from 'lucide-react';
+import { Send, Loader2, User, Bot, BookOpen, Sparkles, FilePenLine } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Link from 'next/link';
@@ -357,10 +357,10 @@ export default function ChatInterface({ initialMessage, initialMode, startFresh 
               onClick={clearChat}
               disabled={isLoading || messages.length === 0}
               className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-zinc-700 shadow-sm hover:bg-white disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-200 dark:hover:bg-zinc-950"
-              aria-label="New chat"
+              aria-label="New Chat"
             >
-              <Trash2 className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">New chat</span>
+              <FilePenLine className="h-3.5 w-3.5" />
+              <span className="whitespace-nowrap">New Chat</span>
             </button>
           </div>
         </div>
