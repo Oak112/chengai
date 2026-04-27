@@ -11,6 +11,8 @@ import {
   getSkills,
 } from '@/lib/content';
 import type { Article, ChunkReference, Experience, Project, Skill, Story } from '@/types';
+import { buildSettingsIdentityPrompt } from '@/lib/site-settings-types';
+import { getSiteSettings } from '@/lib/site-settings';
 
 export const runtime = 'nodejs';
 
@@ -469,6 +471,7 @@ export async function POST(request: NextRequest) {
 
     const sessionContextText =
       typeof sessionContext === 'string' ? sessionContext.trim().slice(0, 12000) : '';
+    const siteSettings = await getSiteSettings();
 
     // Rate limiting check (simple in-memory for now)
     // TODO: Implement proper rate limiting with Redis
@@ -520,12 +523,12 @@ export async function POST(request: NextRequest) {
       : '';
 
     const augmentedSystemPrompt = hasEvidence
-      ? `${CHAT_SYSTEM_PROMPT}${
+      ? `${CHAT_SYSTEM_PROMPT}\n\n${buildSettingsIdentityPrompt(siteSettings)}${
           isFallbackCatalog
             ? '\n\nImportant: some SOURCES may be high-level catalog items (titles, summaries, and links), not verbatim evidence for every detail. Only claim what is explicitly supported by the snippets. If details are missing, say so and point to the most relevant pages to read next.'
             : ''
         }`
-      : `${CHAT_SYSTEM_PROMPT}\n\nImportant: no directly relevant sources were retrieved for this question. State that clearly and suggest the most relevant pages to check (projects / articles / skills), or ask the user to provide more context.`;
+      : `${CHAT_SYSTEM_PROMPT}\n\n${buildSettingsIdentityPrompt(siteSettings)}\n\nImportant: no directly relevant sources were retrieved for this question. State that clearly and suggest the most relevant pages to check (projects / articles / skills), or ask the user to provide more context.`;
 
     const hardGuardrails = buildHardGuardrails(message);
 

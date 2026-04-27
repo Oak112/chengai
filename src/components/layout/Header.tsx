@@ -1,25 +1,47 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Menu, X, MessageSquare, Briefcase, Code, FileText, User, ScrollText, Building2 } from 'lucide-react';
 import { trackEvent } from '@/lib/analytics';
+import type { SiteSettings } from '@/lib/site-settings-types';
 
-const navItems = [
-  { href: '/', label: 'Home', icon: User },
-  { href: '/experience', label: 'Experience', icon: Building2 },
-  { href: '/projects', label: 'Projects', icon: Code },
-  { href: '/skills', label: 'Skills', icon: Briefcase },
-  { href: '/articles', label: 'Articles', icon: FileText },
-  { href: '/stories', label: 'Stories', icon: ScrollText },
-  { href: '/chat', label: 'Chat with AI', icon: MessageSquare },
+type NavVisibilityKey =
+  | 'experienceNav'
+  | 'projectsNav'
+  | 'skillsNav'
+  | 'articlesNav'
+  | 'storiesNav'
+  | 'chatNav';
+
+const navItems: Array<{
+  href: string;
+  label: string;
+  icon: typeof User;
+  visibleKey: NavVisibilityKey | null;
+}> = [
+  { href: '/', label: 'Home', icon: User, visibleKey: null },
+  { href: '/experience', label: 'Experience', icon: Building2, visibleKey: 'experienceNav' },
+  { href: '/projects', label: 'Projects', icon: Code, visibleKey: 'projectsNav' },
+  { href: '/skills', label: 'Skills', icon: Briefcase, visibleKey: 'skillsNav' },
+  { href: '/articles', label: 'Articles', icon: FileText, visibleKey: 'articlesNav' },
+  { href: '/stories', label: 'Stories', icon: ScrollText, visibleKey: 'storiesNav' },
+  { href: '/chat', label: 'Chat', icon: MessageSquare, visibleKey: 'chatNav' },
 ];
 
-export default function Header() {
+export default function Header({ settings }: { settings: SiteSettings }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const visibleNavItems = useMemo(
+    () =>
+      navItems.filter((item) => {
+        if (!item.visibleKey) return true;
+        return settings.visibility[item.visibleKey];
+      }),
+    [settings]
+  );
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/';
@@ -28,7 +50,7 @@ export default function Header() {
 
   useEffect(() => {
     const runPrefetch = () => {
-      for (const item of navItems) {
+      for (const item of visibleNavItems) {
         if (item.href === pathname) continue;
         router.prefetch(item.href);
       }
@@ -52,7 +74,7 @@ export default function Header() {
 
     const t = setTimeout(runPrefetch, 250);
     return () => clearTimeout(t);
-  }, [pathname, router]);
+  }, [pathname, router, visibleNavItems]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-zinc-200/70 bg-white/70 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/50">
@@ -69,7 +91,7 @@ export default function Header() {
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex md:items-center md:gap-2">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -101,7 +123,7 @@ export default function Header() {
       {isMenuOpen && (
         <nav className="border-t border-zinc-200/70 bg-white/80 px-4 py-4 backdrop-blur-xl md:hidden dark:border-zinc-800/70 dark:bg-zinc-950/60">
           <div className="flex flex-col gap-3">
-            {navItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}

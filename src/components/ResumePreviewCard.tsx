@@ -3,15 +3,19 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Download, Expand, FileText, X } from 'lucide-react';
 import { trackEvent } from '@/lib/analytics';
+import type { SiteSettings } from '@/lib/site-settings-types';
 
 const RESUME_PREVIEW_URL = '/api/resume';
 const RESUME_DOWNLOAD_URL = '/api/resume?download=1';
 
-export default function ResumePreviewCard() {
+export default function ResumePreviewCard({ settings }: { settings: SiteSettings }) {
   const titleId = useId();
   const [isOpen, setIsOpen] = useState(false);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const { resume, visibility } = settings;
+  const hasActions = visibility.resumeExpand || visibility.resumeDownload;
+  const hasPreview = visibility.resumePreview;
 
   const onOpen = useCallback(() => {
     if (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 640px)').matches) {
@@ -61,6 +65,8 @@ export default function ResumePreviewCard() {
     trackEvent('resume_download_clicked', { page: 'home', location: 'resume_preview' });
   }, []);
 
+  if (!visibility.resumeCard || (!hasActions && !hasPreview)) return null;
+
   return (
     <>
       <div className="mx-auto w-full max-w-3xl rounded-2xl border border-zinc-200 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/40 sm:p-5">
@@ -71,65 +77,73 @@ export default function ResumePreviewCard() {
             </span>
             <div className="text-left">
               <h3 id={titleId} className="text-sm font-semibold text-zinc-900 dark:text-white">
-                Resume
+                {resume.title}
               </h3>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Scroll to preview. Expand for full view.
+                {resume.subtitle}
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={onOpen}
-              className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/30 dark:text-zinc-200 dark:hover:bg-zinc-950"
-            >
-              <Expand className="h-4 w-4" />
-              Expand
-            </button>
+          {hasActions ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {visibility.resumeExpand ? (
+                <button
+                  type="button"
+                  onClick={onOpen}
+                  className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/30 dark:text-zinc-200 dark:hover:bg-zinc-950"
+                >
+                  <Expand className="h-4 w-4" />
+                  Expand
+                </button>
+              ) : null}
 
-            <a
-              href={RESUME_DOWNLOAD_URL}
-              onClick={onDownloadClick}
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
-            >
-              <Download className="h-4 w-4" />
-              Download PDF
-            </a>
-          </div>
+              {visibility.resumeDownload ? (
+                <a
+                  href={RESUME_DOWNLOAD_URL}
+                  onClick={onDownloadClick}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
+                >
+                  <Download className="h-4 w-4" />
+                  Download PDF
+                </a>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
-        <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
-          {isSmallScreen ? (
-            <button
-              type="button"
-              onClick={onOpen}
-              className="flex h-[360px] w-full items-center justify-center gap-3 px-6 text-sm font-semibold text-zinc-700 transition-colors hover:bg-white/60 dark:text-zinc-200 dark:hover:bg-zinc-950/40"
-              aria-label="Open resume preview"
-            >
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 text-white shadow-sm">
-                <FileText className="h-5 w-5" />
-              </span>
-              <span className="text-left">
-                <span className="block text-sm font-semibold">Tap to open resume</span>
-                <span className="mt-0.5 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                  Opens a full screen viewer for the best mobile experience.
+        {hasPreview ? (
+          <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
+            {isSmallScreen ? (
+              <button
+                type="button"
+                onClick={onOpen}
+                className="flex h-[360px] w-full items-center justify-center gap-3 px-6 text-sm font-semibold text-zinc-700 transition-colors hover:bg-white/60 dark:text-zinc-200 dark:hover:bg-zinc-950/40"
+                aria-label="Open resume preview"
+              >
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 text-white shadow-sm">
+                  <FileText className="h-5 w-5" />
                 </span>
-              </span>
-            </button>
-          ) : (
-            <iframe
-              src={`${RESUME_PREVIEW_URL}#view=FitH`}
-              title="Resume preview"
-              className="h-[420px] w-full"
-              loading="lazy"
-            />
-          )}
-        </div>
+                <span className="text-left">
+                  <span className="block text-sm font-semibold">Tap to open resume</span>
+                  <span className="mt-0.5 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                    Opens a full screen viewer for the best mobile experience.
+                  </span>
+                </span>
+              </button>
+            ) : (
+              <iframe
+                src={`${RESUME_PREVIEW_URL}#view=FitH`}
+                title="Resume preview"
+                className="h-[420px] w-full"
+                loading="lazy"
+              />
+            )}
+          </div>
+        ) : null}
       </div>
 
-      {isOpen ? (
+      {isOpen && visibility.resumeExpand ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/50 p-4 backdrop-blur-sm"
           role="dialog"
@@ -143,18 +157,20 @@ export default function ResumePreviewCard() {
             <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4 text-zinc-600 dark:text-zinc-300" />
-                <span className="text-sm font-semibold text-zinc-900 dark:text-white">Resume</span>
+                <span className="text-sm font-semibold text-zinc-900 dark:text-white">{resume.title}</span>
               </div>
 
               <div className="flex items-center gap-2">
-                <a
-                  href={RESUME_DOWNLOAD_URL}
-                  onClick={onDownloadClick}
-                  className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/30 dark:text-zinc-200 dark:hover:bg-zinc-950"
-                >
-                  <Download className="h-4 w-4" />
-                  Download
-                </a>
+                {visibility.resumeDownload ? (
+                  <a
+                    href={RESUME_DOWNLOAD_URL}
+                    onClick={onDownloadClick}
+                    className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/30 dark:text-zinc-200 dark:hover:bg-zinc-950"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download
+                  </a>
+                ) : null}
 
                 <button
                   ref={closeButtonRef}

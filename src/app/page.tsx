@@ -2,8 +2,23 @@ import { MessageSquare, Briefcase, ArrowRight, Code, FileText, Building2 } from 
 import TrackedLink from "@/components/TrackedLink";
 import HeroIdentityBar from "@/components/HeroIdentityBar";
 import ResumePreviewCard from "@/components/ResumePreviewCard";
+import { getSiteSettings } from "@/lib/site-settings";
 
-export default function Home() {
+export default async function Home() {
+  const settings = await getSiteSettings();
+  const { profile, visibility } = settings;
+  const visibleWorkCards = [
+    visibility.experienceNav ? 'experience' : null,
+    visibility.projectsNav ? 'projects' : null,
+    visibility.skillsNav ? 'skills' : null,
+    visibility.articlesNav ? 'articles' : null,
+  ].filter(Boolean);
+  const showCtas = visibility.chatCta || visibility.jdMatchCta;
+  const showResume =
+    visibility.resumeCard &&
+    (visibility.resumePreview || visibility.resumeExpand || visibility.resumeDownload);
+  const showShortcuts = visibility.shortcuts && visibility.chatCta;
+
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
@@ -13,46 +28,55 @@ export default function Home() {
             <h1 className="text-4xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-6xl">
               Hi, I&apos;m{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
-                Charlie Cheng
+                {profile.displayName}
               </span>
             </h1>
 
             <p className="mx-auto mt-6 max-w-2xl text-lg text-zinc-600 dark:text-zinc-400">
-              AI-native student and engineer building powerful AI products.
-              Chat with my AI twin, match a job description, or run a mock interview.
+              {profile.heroSubtitle}
             </p>
 
-            <HeroIdentityBar />
+            <HeroIdentityBar settings={settings} />
 
             {/* CTA Buttons */}
-            <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:justify-center">
-              <TrackedLink
-                href="/chat"
-                event="cta_click"
-                meta={{ cta: "chat_with_ai", page: "home" }}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-8 py-4 text-lg font-medium text-white shadow-lg transition-all hover:bg-blue-700 hover:shadow-xl"
-              >
-                <MessageSquare className="h-5 w-5" />
-                Chat with My AI
-                <ArrowRight className="h-4 w-4" />
-              </TrackedLink>
-              <TrackedLink
-                href="/jd-match"
-                event="cta_click"
-                meta={{ cta: "jd_match", page: "home" }}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-zinc-200 bg-white px-8 py-4 text-lg font-medium text-zinc-700 transition-colors hover:border-blue-600 hover:text-blue-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-blue-500 dark:hover:text-blue-400"
-              >
-                <Briefcase className="h-5 w-5" />
-                Match Your JD
-              </TrackedLink>
-            </div>
+            {showCtas ? (
+              <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:justify-center">
+                {visibility.chatCta ? (
+                  <TrackedLink
+                    href="/chat"
+                    event="cta_click"
+                    meta={{ cta: "chat_with_ai", page: "home" }}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-8 py-4 text-lg font-medium text-white shadow-lg transition-all hover:bg-blue-700 hover:shadow-xl"
+                  >
+                    <MessageSquare className="h-5 w-5" />
+                    Chat with My AI
+                    <ArrowRight className="h-4 w-4" />
+                  </TrackedLink>
+                ) : null}
+
+                {visibility.jdMatchCta ? (
+                  <TrackedLink
+                    href="/jd-match"
+                    event="cta_click"
+                    meta={{ cta: "jd_match", page: "home" }}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-zinc-200 bg-white px-8 py-4 text-lg font-medium text-zinc-700 transition-colors hover:border-blue-600 hover:text-blue-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-blue-500 dark:hover:text-blue-400"
+                  >
+                    <Briefcase className="h-5 w-5" />
+                    Match Your JD
+                  </TrackedLink>
+                ) : null}
+              </div>
+            ) : null}
 
             {/* Resume Preview */}
-            <div className="mt-8">
-              <ResumePreviewCard />
-            </div>
+            {showResume ? (
+              <div className="mt-8">
+                <ResumePreviewCard settings={settings} />
+              </div>
+            ) : null}
 
             {/* Playful shortcuts */}
+            {showShortcuts ? (
             <div className="mt-8 flex flex-wrap justify-center gap-2">
               <TrackedLink
                 href={{
@@ -107,6 +131,7 @@ export default function Home() {
                 Referral + cover letter
               </TrackedLink>
             </div>
+            ) : null}
           </div>
         </div>
 
@@ -118,6 +143,7 @@ export default function Home() {
       </section>
 
       {/* Quick Links Section */}
+      {visibility.exploreWork && visibleWorkCards.length > 0 ? (
       <section className="py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <h2 className="text-center text-2xl font-bold text-zinc-900 dark:text-white mb-12">
@@ -125,7 +151,7 @@ export default function Home() {
           </h2>
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {/* Experience Card */}
+            {visibility.experienceNav ? (
             <TrackedLink
               href="/experience"
               event="home_card_click"
@@ -143,8 +169,9 @@ export default function Home() {
                 View Experience <ArrowRight className="h-4 w-4" />
               </span>
             </TrackedLink>
+            ) : null}
 
-            {/* Projects Card */}
+            {visibility.projectsNav ? (
             <TrackedLink
               href="/projects"
               event="home_card_click"
@@ -162,8 +189,9 @@ export default function Home() {
                 View Projects <ArrowRight className="h-4 w-4" />
               </span>
             </TrackedLink>
+            ) : null}
 
-            {/* Skills Card */}
+            {visibility.skillsNav ? (
             <TrackedLink
               href="/skills"
               event="home_card_click"
@@ -181,8 +209,9 @@ export default function Home() {
                 View Skills <ArrowRight className="h-4 w-4" />
               </span>
             </TrackedLink>
+            ) : null}
 
-            {/* Articles Card */}
+            {visibility.articlesNav ? (
             <TrackedLink
               href="/articles"
               event="home_card_click"
@@ -200,9 +229,11 @@ export default function Home() {
                 Read Articles <ArrowRight className="h-4 w-4" />
               </span>
             </TrackedLink>
+            ) : null}
           </div>
         </div>
       </section>
+      ) : null}
     </div>
   );
 }

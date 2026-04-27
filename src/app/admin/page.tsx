@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Code, FileText, Briefcase, Database, ScrollText, BarChart3, LogOut, RefreshCw, Loader2, CheckCircle, AlertCircle, IdCard, Building2 } from 'lucide-react';
+import { Code, FileText, Briefcase, Database, ScrollText, BarChart3, LogOut, RefreshCw, Loader2, CheckCircle, AlertCircle, IdCard, Building2, Settings } from 'lucide-react';
 
 function getCookieValue(name: string): string | null {
   if (typeof document === 'undefined') return null;
@@ -113,6 +113,13 @@ export default function AdminPage() {
       icon: BarChart3,
       href: '/admin/analytics',
       color: 'from-slate-500 to-slate-600',
+    },
+    {
+      title: 'Site Settings',
+      description: 'Show, hide, and edit homepage sections',
+      icon: Settings,
+      href: '/admin/settings',
+      color: 'from-cyan-500 to-cyan-600',
     },
   ];
 

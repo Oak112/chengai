@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Shell from "@/components/layout/Shell";
 import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
+import { getSiteSettings } from "@/lib/site-settings";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,18 +28,20 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const settings = await getSiteSettings();
+
   return (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-[100dvh] bg-gradient-to-b from-zinc-50 via-white to-white dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-950`}
       >
         <GoogleAnalytics />
-        <Shell>{children}</Shell>
+        <Shell settings={settings}>{children}</Shell>
       </body>
     </html>
   );

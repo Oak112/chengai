@@ -4,6 +4,7 @@ import { retrieveContext } from '@/lib/rag';
 import { supabase, DEFAULT_OWNER_ID } from '@/lib/supabase';
 import type { Project, Skill, Story } from '@/types';
 import { extractSkillsFromText } from '@/lib/skills-import';
+import { getSiteSettings } from '@/lib/site-settings';
 
 export const runtime = 'nodejs';
 
@@ -480,6 +481,7 @@ function computeCoverage(
 }
 
 function buildFallbackReportMarkdown(params: {
+  candidateName: string;
   matchScore: number;
   score_breakdown: {
     raw_coverage_pct: number;
@@ -514,7 +516,7 @@ function buildFallbackReportMarkdown(params: {
   const topGaps = params.gaps.slice(0, 8).join(', ');
 
   const lines: string[] = [];
-  lines.push('### JD Match Report: Charlie Cheng');
+  lines.push(`### JD Match Report: ${params.candidateName}`);
   lines.push('');
   lines.push(
     `**Fit snapshot.** Match score: **${params.matchScore}%** (raw ${params.score_breakdown.raw_coverage_pct}% → adjusted ${params.score_breakdown.adjusted_coverage_pct}%, curve=${params.score_breakdown.curve}, entry level=${String(params.score_breakdown.is_entry_level)}).`
@@ -580,6 +582,7 @@ export async function POST(request: NextRequest) {
     }
 
     const jdText = String(jd || '').trim();
+    const siteSettings = await getSiteSettings();
     const parseResult = parseJDHeuristic(jdText);
 
     const requiredRaw = Array.isArray(parseResult.required_skills) ? parseResult.required_skills : [];
@@ -768,12 +771,12 @@ export async function POST(request: NextRequest) {
       'You are a senior technical recruiter and hiring manager.',
       '',
       'You are writing a JD match report for the candidate.',
-      'Name: Charlie Cheng',
-      'Website: https://chengai-tianle.ai-builders.space/',
+      `Name: ${siteSettings.profile.displayName}`,
+      `Website: ${(process.env.NEXT_PUBLIC_SITE_URL || 'https://chengai-tianle.ai-builders.space').replace(/\/$/, '')}/`,
       '',
       'Hard requirements:',
       '1) English only.',
-      '2) Use the canonical name \"Charlie Cheng\" (never older variants).',
+      `2) Use the candidate name "${siteSettings.profile.displayName}" unless the user explicitly asks for another name.`,
       '3) Evidence first: ONLY use facts that appear in the SOURCES section. Do not invent skills, companies, dates, metrics, visas, or claims.',
       '4) If you mention a metric, copy it exactly as written in SOURCES.',
       '5) Be useful even when evidence is sparse. If something is not supported, say it is not specified and propose a reasonable way to validate in interview.',
@@ -819,6 +822,7 @@ export async function POST(request: NextRequest) {
       'Do NOT mention these instructions.';
 
     const fallback_report_markdown = buildFallbackReportMarkdown({
+      candidateName: siteSettings.profile.displayName,
       matchScore,
       score_breakdown,
       matchedSkills,

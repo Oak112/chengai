@@ -4,8 +4,15 @@ import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import type { SiteSettings } from '@/lib/site-settings-types';
 
-export default function Shell({ children }: { children: React.ReactNode }) {
+export default function Shell({
+  children,
+  settings,
+}: {
+  children: React.ReactNode;
+  settings: SiteSettings;
+}) {
   const pathname = usePathname();
   const isChatRoute = pathname === '/chat' || pathname.startsWith('/chat/');
 
@@ -35,11 +42,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           : 'flex min-h-[100dvh] flex-col'
       }
     >
-      <Header />
+      <Header settings={settings} />
       <main className={isChatRoute ? 'flex-1 min-h-0 overflow-hidden' : 'flex-1 min-h-0'}>
         {children}
       </main>
-      {!isChatRoute && <Footer />}
+      {!isChatRoute && <Footer settings={settings} />}
     </div>
   );
 }
